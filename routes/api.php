@@ -4,6 +4,7 @@
 use App\Http\Controllers\api\CategoryController;
 use App\Http\Controllers\Api\MerchantController;
 use App\Http\Controllers\Api\MerchantProductController;
+use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\api\WarehouseController;
 use App\Http\Controllers\api\WarehouseProductController;
 use Illuminate\Support\Facades\Route;
@@ -52,6 +53,14 @@ Route::prefix('merchants')->group(function () {
         Route::patch('/{productId}/stock', [MerchantProductController::class, 'updateStock']);
         Route::delete('/{productId}', [MerchantProductController::class, 'detachProduct']);
     });
+});
+Route::prefix('products')->group(function () {
+    Route::get('/', [ProductController::class, 'index']);
+    Route::post('/', [ProductController::class, 'store']);
+    Route::get('/{slug}', [ProductController::class, 'show']);
+    Route::post('/{slug}', [ProductController::class, 'update']);
+
+    Route::delete('/{slug}', [ProductController::class, 'destroy']);
 });
 Route::prefix('merchant-products')->group(function () {
     Route::post('/assign-from-warehouse', [MerchantProductController::class, 'assignFromWarehouse']);

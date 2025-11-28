@@ -42,7 +42,7 @@ class ProductService
     public function update(string $slug, array $data): Product
     {
         return DB::transaction(function () use ($slug, $data) {
-            $product = $this->productRepository->getProductBySlug($slug, $data);
+            $product = $this->productRepository->getProductBySlug($slug, ['*']);
 
             if (isset($data['thumbnail']) && $data['thumbnail'] instanceof UploadedFile) {
                 $this->deleteOldThumbnail($product);
