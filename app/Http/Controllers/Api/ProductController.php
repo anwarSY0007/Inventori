@@ -26,10 +26,7 @@ class ProductController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            // Bisa tambah filter query param disini, misal ?category_id=...
-            $filters = $request->only(['category_id', 'is_popular']);
-
-            $products = $this->productService->getAll($filters);
+            $products = $this->productService->getAll();
 
             return ResponseHelpers::jsonResponse(
                 true,

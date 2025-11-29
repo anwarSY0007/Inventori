@@ -95,8 +95,6 @@ class TransactionService
             foreach ($data['products'] as $item) {
                 $productId = $item['product_id'];
                 $qty = $item['qty'];
-
-                // Get product from merchant
                 $merchantProduct = $merchantProducts->get($productId);
 
                 if (!$merchantProduct) {
@@ -104,8 +102,6 @@ class TransactionService
                         'products' => ["Produk {$productId} tidak tersedia di merchant ini"]
                     ]);
                 }
-
-                // Check stock availability
                 if ($merchantProduct->pivot->stock < $qty) {
                     throw ValidationException::withMessages([
                         'products' => ["Stok produk {$merchantProduct->name} tidak mencukupi. Tersedia: {$merchantProduct->pivot->stock}"]
@@ -122,12 +118,8 @@ class TransactionService
                 ];
 
                 $subTotal += $subTotalItem;
-
-                // Reduce stock di merchant
                 $newStock = $merchantProduct->pivot->stock - $qty;
                 $this->merchantRepository->updateProductStock($merchant, $productId, $newStock);
-
-                // Record stock mutation
                 $this->stockMutationService->recordMutation([
                     'product_id' => $productId,
                     'merchant_id' => $merchant->id,
@@ -165,8 +157,6 @@ class TransactionService
             $transaction = $this->transactionRepository->getTransactionById($transactionId);
 
             $statusEnum = TransactionEnum::from($status);
-
-            // Jika cancelled, kembalikan stock
             if ($statusEnum === TransactionEnum::CANCELLED && $transaction->status === TransactionEnum::PENDING) {
                 $this->restoreStock($transaction);
             }

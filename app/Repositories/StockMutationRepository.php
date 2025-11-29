@@ -11,7 +11,7 @@ class StockMutationRepository
     /**
      * Get all stock mutations with pagination
      */
-    public function getAllMutation(array $filters = [], array $field = ['*']): LengthAwarePaginator
+    public function getAllMutation(array $filters = [], array $field = ['*'], int $perPage = 25): LengthAwarePaginator
     {
         $query = StockMutation::select($field)
             ->with(['product.category', 'warehouse', 'merchant', 'creator', 'reference'])
@@ -51,7 +51,7 @@ class StockMutationRepository
             $query->where('reference_type', $filters['reference_type']);
         }
 
-        return $query->paginate(25);
+        return $query->paginate($perPage);
     }
 
     /**

@@ -11,7 +11,7 @@ class TransactionRepository
     /**
      * Get all transactions with pagination
      */
-    public function getAllTransaction(array $filters = [], array $field = ['*']): LengthAwarePaginator
+    public function getAllTransaction(array $filters = [], array $field = ['*'], int $perPage = 25): LengthAwarePaginator
     {
         $query = Transaction::select($field)
             ->with(['merchant', 'cashier', 'transactionProducts.product.category'])
@@ -41,7 +41,7 @@ class TransactionRepository
             $query->where('payment_method', $filters['payment_method']);
         }
 
-        return $query->paginate(25);
+        return $query->paginate($perPage);
     }
 
     /**

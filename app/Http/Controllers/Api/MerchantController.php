@@ -29,8 +29,7 @@ class MerchantController extends Controller
     public function index(): JsonResponse
     {
         try {
-            $field = ['id', 'slug', 'name', 'phone', 'alamat', 'thumbnail', 'description', 'keeper_id', 'created_at'];
-            $merchants = $this->merchantService->getAll($field);
+            $merchants = $this->merchantService->getAll();
 
             return ResponseHelpers::jsonResponse(
                 true,

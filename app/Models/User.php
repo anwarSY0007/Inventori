@@ -4,20 +4,26 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 
+use App\Observers\UserObserver;
 use App\Traits\HasSlug;
 use App\Traits\UUID;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Fortify\TwoFactorAuthenticatable;
+use Spatie\Permission\Traits\HasRoles;
 
+#[ObservedBy(UserObserver::class)]
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, TwoFactorAuthenticatable,UUID,HasSlug;
+    use HasFactory, Notifiable, TwoFactorAuthenticatable, UUID, HasSlug, HasRoles;
 
     /**
      * The attributes that are mass assignable.
@@ -47,23 +53,23 @@ class User extends Authenticatable
 
     public function getAvatarAttribute($value)
     {
-        if (!$value){
+        if (!$value) {
             return asset('storage/img/default.png');
         }
 
         return url(Storage::url($value));
     }
 
-    public function merchant():HasOne
+    public function merchant(): HasOne
     {
-        return $this->hasOne(Merchant::class,'keeper_id');
+        return $this->hasOne(Merchant::class, 'keeper_id');
     }
 
     public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class, 'cashier_id');
     }
-    
+
     public function stockMutations(): HasMany
     {
         return $this->hasMany(StockMutation::class, 'created_by');
@@ -81,5 +87,15 @@ class User extends Authenticatable
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
         ];
+    }
+
+    public function teams(): BelongsToMany
+    {
+        return $this->belongsToMany(Team::class, 'teams_users')->withTimestamps();
+    }
+
+    public function currentTeams(): BelongsTo
+    {
+        return $this->belongsTo(Team::class, 'current_team_id');
     }
 }

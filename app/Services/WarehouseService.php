@@ -11,22 +11,20 @@ use Illuminate\Support\Facades\Storage;
 
 class WarehouseService
 {
-    protected $warehouseRepository;
+    private const DEFAULT_FIELDS = ['id', 'slug', 'name', 'phone', 'alamat', 'thumbnail', 'description', 'created_at'];
 
-    public function __construct(WarehouseRepository $warehouseRepository)
-    {
-        $this->warehouseRepository = $warehouseRepository;
-    }
+    public function __construct(
+        protected WarehouseRepository $warehouseRepository
+    ) {}
 
     /**
      * Get all warehouses
      */
     public function getAll(array $field = []): LengthAwarePaginator
     {
-        if (empty($field)) {
-            $field = ['id', 'slug', 'name', 'phone', 'alamat', 'thumbnail', 'description', 'created_at'];
-        }
-        return $this->warehouseRepository->getAllWarehouse($field);
+        return $this->warehouseRepository->getAllWarehouse(
+            empty($fields) ? self::DEFAULT_FIELDS : $fields
+        );
     }
 
     /**
@@ -58,8 +56,7 @@ class WarehouseService
 
                 $warehouse = $this->warehouseRepository->createWarehouse($data);
 
-                // Attach products if provided
-                if (isset($data['products']) && is_array($data['products'])) {
+                if (!empty($data['products'])) {
                     $this->warehouseRepository->attachProducts($warehouse, $data['products']);
                 }
 
@@ -77,7 +74,6 @@ class WarehouseService
             function () use ($data, $slug) {
                 $warehouse = $this->warehouseRepository->getWarehouseBySlug($slug, ['*']);
 
-                // Handle thumbnail update
                 if (isset($data['thumbnail']) && $data['thumbnail'] instanceof UploadedFile) {
                     $this->deleteOldThumbnail($warehouse);
                     $data['thumbnail'] = $this->uploadThumbnail($data['thumbnail']);
@@ -85,8 +81,7 @@ class WarehouseService
 
                 $warehouse = $this->warehouseRepository->updateWarehouse($warehouse, $data);
 
-                // Sync products if provided
-                if (isset($data['products']) && is_array($data['products'])) {
+                if (isset($data['products'])) {
                     $this->warehouseRepository->syncProducts($warehouse, $data['products']);
                 }
 
@@ -100,15 +95,14 @@ class WarehouseService
      */
     public function delete(string $slug): bool
     {
-        $warehouse = $this->warehouseRepository->getWarehouseBySlug($slug, ['*']);
+        return DB::transaction(function () use ($slug) {
+            $warehouse = $this->warehouseRepository->getWarehouseBySlug($slug, ['*']);
 
-        // Delete thumbnail
-        $this->deleteOldThumbnail($warehouse);
+            $this->deleteOldThumbnail($warehouse);
+            $this->warehouseRepository->detachProducts($warehouse);
 
-        // Detach all products before delete
-        $this->warehouseRepository->detachProducts($warehouse);
-
-        return $this->warehouseRepository->deleteWarehouse($warehouse);
+            return $this->warehouseRepository->deleteWarehouse($warehouse);
+        });
     }
 
     /**
@@ -116,9 +110,7 @@ class WarehouseService
      */
     public function addProducts(string $slug, array $products): Warehouse
     {
-        $warehouse = $this->warehouseRepository->getWarehouseBySlug($slug, ['*']);
-
-        // Format: ['product_id' => ['stock' => 100]]
+        $warehouse = $this->warehouseRepository->getWarehouseBySlug($slug, ['id']);
         $this->warehouseRepository->attachProducts($warehouse, $products);
 
         return $warehouse->fresh(['products.category']);
@@ -129,8 +121,7 @@ class WarehouseService
      */
     public function updateProductStock(string $slug, string $productId, int $stock): Warehouse
     {
-        $warehouse = $this->warehouseRepository->getWarehouseBySlug($slug, ['*']);
-
+        $warehouse = $this->warehouseRepository->getWarehouseBySlug($slug, ['id']);
         $this->warehouseRepository->updateProductStock($warehouse, $productId, $stock);
 
         return $warehouse->fresh(['products.category']);
@@ -141,8 +132,7 @@ class WarehouseService
      */
     public function removeProducts(string $slug, array $productIds = []): Warehouse
     {
-        $warehouse = $this->warehouseRepository->getWarehouseBySlug($slug, ['*']);
-
+        $warehouse = $this->warehouseRepository->getWarehouseBySlug($slug, ['id']);
         $this->warehouseRepository->detachProducts($warehouse, $productIds);
 
         return $warehouse->fresh(['products.category']);
@@ -153,8 +143,8 @@ class WarehouseService
      */
     private function deleteOldThumbnail(Warehouse $warehouse): void
     {
-        if ($warehouse->thumbnail && Storage::disk('public')->exists($warehouse->getRawOriginal('thumbnail'))) {
-            Storage::disk('public')->delete($warehouse->getRawOriginal('thumbnail'));
+        if ($oldThumbnail = $warehouse->getRawOriginal('thumbnail')) {
+            Storage::disk('public')->delete($oldThumbnail);
         }
     }
 

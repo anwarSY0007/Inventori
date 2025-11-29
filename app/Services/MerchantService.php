@@ -11,46 +11,44 @@ use Illuminate\Support\Facades\Storage;
 
 class MerchantService
 {
-    protected $merchantRepository;
+    private const DEFAULT_FIELDS = ['id', 'slug', 'name', 'phone', 'alamat', 'thumbnail', 'description', 'keeper_id', 'created_at'];
 
-    public function __construct(MerchantRepository $merchantRepository)
-    {
-        $this->merchantRepository = $merchantRepository;
-    }
+    public function __construct(
+        protected MerchantRepository $merchantRepository
+    ) {}
 
     /**
      * Get all merchants
      */
-    public function getAll(array $field = []): LengthAwarePaginator
+    public function getAll(array $fields = []): LengthAwarePaginator
     {
-        if (empty($field)) {
-            $field = ['id', 'slug', 'name', 'phone', 'alamat', 'thumbnail', 'description', 'keeper_id', 'created_at'];
-        }
-        return $this->merchantRepository->getAllMerchant($field);
+        return $this->merchantRepository->getAllMerchant(
+            empty($fields) ? self::DEFAULT_FIELDS : $fields
+        );
     }
 
     /**
      * Get merchant by slug
      */
-    public function getBySlug(string $slug, array $field = ['*']): Merchant
+    public function getBySlug(string $slug, array $fields = ['*']): Merchant
     {
-        return $this->merchantRepository->getMerchantBySlug($slug, $field);
+        return $this->merchantRepository->getMerchantBySlug($slug, $fields);
     }
 
     /**
      * Get merchant by ID
      */
-    public function getById(string $id, array $field = ['*']): Merchant
+    public function getById(string $id, array $fields = ['*']): Merchant
     {
-        return $this->merchantRepository->getMerchantById($id, $field);
+        return $this->merchantRepository->getMerchantById($id, $fields);
     }
 
     /**
      * Get merchant by keeper ID
      */
-    public function getByKeeperId(string $keeperId, array $field = ['*']): Merchant
+    public function getByKeeperId(string $keeperId, array $fields = ['*']): Merchant
     {
-        return $this->merchantRepository->getMerchantByKeeperId($keeperId, $field);
+        return $this->merchantRepository->getMerchantByKeeperId($keeperId, $fields);
     }
 
     /**
@@ -63,14 +61,7 @@ class MerchantService
                 $data['thumbnail'] = $this->uploadThumbnail($data['thumbnail']);
             }
 
-            $merchant = $this->merchantRepository->createMerchant($data);
-
-            // Attach products if provided
-            if (isset($data['products']) && is_array($data['products'])) {
-                $this->merchantRepository->attachProducts($merchant, $data['products']);
-            }
-
-            return $merchant;
+            return $this->merchantRepository->createMerchant($data);
         });
     }
 
@@ -82,20 +73,12 @@ class MerchantService
         return DB::transaction(function () use ($slug, $data) {
             $merchant = $this->merchantRepository->getMerchantBySlug($slug, ['*']);
 
-            // Handle thumbnail update
             if (isset($data['thumbnail']) && $data['thumbnail'] instanceof UploadedFile) {
                 $this->deleteOldThumbnail($merchant);
                 $data['thumbnail'] = $this->uploadThumbnail($data['thumbnail']);
             }
 
-            $merchant = $this->merchantRepository->updateMerchant($merchant, $data);
-
-            // Sync products if provided
-            if (isset($data['products']) && is_array($data['products'])) {
-                $this->merchantRepository->syncProducts($merchant, $data['products']);
-            }
-
-            return $merchant;
+            return $this->merchantRepository->updateMerchant($merchant, $data);
         });
     }
 
@@ -106,13 +89,7 @@ class MerchantService
     {
         return DB::transaction(function () use ($slug) {
             $merchant = $this->merchantRepository->getMerchantBySlug($slug, ['*']);
-
-            // Delete thumbnail
             $this->deleteOldThumbnail($merchant);
-
-            // Detach all products before delete
-            $this->merchantRepository->detachProducts($merchant);
-
             return $this->merchantRepository->deleteMerchant($merchant);
         });
     }
@@ -124,8 +101,6 @@ class MerchantService
     {
         return DB::transaction(function () use ($slug, $products) {
             $merchant = $this->merchantRepository->getMerchantBySlug($slug, ['*']);
-
-            // Format: ['product_id' => ['stock' => 100]]
             $this->merchantRepository->attachProducts($merchant, $products);
 
             return $merchant->fresh(['keeper', 'products.category']);
@@ -137,13 +112,10 @@ class MerchantService
      */
     public function updateProductStock(string $slug, string $productId, int $stock): Merchant
     {
-        return DB::transaction(function () use ($slug, $productId, $stock) {
-            $merchant = $this->merchantRepository->getMerchantBySlug($slug, ['*']);
+        $merchant = $this->merchantRepository->getMerchantBySlug($slug, ['id']);
+        $this->merchantRepository->updateProductStock($merchant, $productId, $stock);
 
-            $this->merchantRepository->updateProductStock($merchant, $productId, $stock);
-
-            return $merchant->fresh(['keeper', 'products.category']);
-        });
+        return $merchant->fresh(['keeper', 'products.category']);
     }
 
     /**
@@ -151,13 +123,10 @@ class MerchantService
      */
     public function removeProducts(string $slug, array $productIds = []): Merchant
     {
-        return DB::transaction(function () use ($slug, $productIds) {
-            $merchant = $this->merchantRepository->getMerchantBySlug($slug, ['*']);
+        $merchant = $this->merchantRepository->getMerchantBySlug($slug, ['id']);
+        $this->merchantRepository->detachProducts($merchant, $productIds);
 
-            $this->merchantRepository->detachProducts($merchant, $productIds);
-
-            return $merchant->fresh(['keeper', 'products.category']);
-        });
+        return $merchant->fresh(['keeper', 'products.category']);
     }
 
     /**
@@ -165,8 +134,8 @@ class MerchantService
      */
     private function deleteOldThumbnail(Merchant $merchant): void
     {
-        if ($merchant->thumbnail && Storage::disk('public')->exists($merchant->getRawOriginal('thumbnail'))) {
-            Storage::disk('public')->delete($merchant->getRawOriginal('thumbnail'));
+        if ($thumbnail = $merchant->getRawOriginal('thumbnail')) {
+            Storage::disk('public')->delete($thumbnail);
         }
     }
 

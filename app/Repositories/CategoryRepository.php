@@ -7,9 +7,9 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class CategoryRepository
 {
-    public function getAllCategory(array $field): LengthAwarePaginator
+    public function getAllCategory(array $field, int $perPage = 25): LengthAwarePaginator
     {
-        return Category::select($field)->latest()->paginate(25);
+        return Category::select($field)->latest()->paginate($perPage);
     }
 
     public function getCategoryBySlug(string $slug, array $field): Category

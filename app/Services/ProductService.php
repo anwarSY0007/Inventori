@@ -11,19 +11,29 @@ use Illuminate\Support\Facades\Storage;
 
 class ProductService
 {
-    protected $productRepository;
 
-    public function __construct(ProductRepository $productRepository)
+    private const DEFAULT_FIELDS = [
+        'id',
+        'slug',
+        'category_id',
+        'name',
+        'price',
+        'thumbnail',
+        'is_popular',
+        'created_at'
+    ];
+
+    public function __construct(
+        protected ProductRepository $productRepository
+    ) {}
+
+    public function getAll(array $filters = [], array $fields = []): LengthAwarePaginator
     {
-        $this->productRepository = $productRepository;
+        $columns = empty($fields) ? self::DEFAULT_FIELDS : $fields;
+        return $this->productRepository->getAllProduct($filters, $columns);
     }
 
-    public function getAll(array $filters = []): LengthAwarePaginator
-    {
-        return $this->productRepository->getAllProduct($filters);
-    }
-
-    public function getBySlug(string $slug, array $field): Product
+    public function getBySlug(string $slug, array $field = ['*']): Product
     {
         return $this->productRepository->getProductBySlug($slug, $field);
     }

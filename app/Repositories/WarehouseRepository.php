@@ -10,12 +10,12 @@ class WarehouseRepository
     /**
      * Get all warehouses with pagination
      */
-    public function getAllWarehouse(array $field = ['*']): LengthAwarePaginator
+    public function getAllWarehouse(array $field = ['*'], int $perPage = 25): LengthAwarePaginator
     {
         return Warehouse::select($field)
             ->with(['products.category'])
             ->latest()
-            ->paginate(25);
+            ->paginate($perPage);
     }
 
     /**

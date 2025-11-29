@@ -11,12 +11,12 @@ class MerchantRepository
     /**
      * Get all merchants with pagination
      */
-    public function getAllMerchant(array $field = ['*']): LengthAwarePaginator
+    public function getAllMerchant(array $field = ['*'], int $perPage = 25): LengthAwarePaginator
     {
         return Merchant::select($field)
             ->with(['keeper', 'products.category'])
             ->latest()
-            ->paginate(25);
+            ->paginate($perPage);
     }
     /**
      * Get merchant by slug

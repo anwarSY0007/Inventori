@@ -5,68 +5,72 @@ namespace App\Services;
 use App\Models\Category;
 use App\Repositories\CategoryRepository;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class CategoryService
 {
-    protected $categoryRepository;
+    private const DEFAULT_FIELDS = ['id', 'slug', 'name', 'thumbnail', 'tagline', 'created_at'];
 
-    public function __construct(CategoryRepository $categoryRepository)
+    public function __construct(
+        protected CategoryRepository $categoryRepository
+    ) {}
+
+    public function getAll(array $fields = [])
     {
-        $this->categoryRepository = $categoryRepository;
+        return $this->categoryRepository->getAllCategory(
+            empty($fields) ? self::DEFAULT_FIELDS : $fields
+        );
     }
 
-    public function getAll(array $field = [])
+    public function getBySlug(string $slug, array $fields = ['*'])
     {
-        if (empty($field)) {
-            $field = ['id', 'slug', 'name', 'thumbnail', 'tagline', 'created_at'];
-        }
-        return $this->categoryRepository->getAllCategory($field);
+        return $this->categoryRepository->getCategoryBySlug($slug, $fields);
     }
 
-    public function getBySlug(string $slug, array $field)
+    public function getById(string $id, array $fields = ['*'])
     {
-        return $this->categoryRepository->getCategoryBySlug($slug, $field);
-    }
-
-    public function getById(string $id, array $field)
-    {
-        return $this->categoryRepository->getCategoryById($id, $field ?? ['*']);
+        return $this->categoryRepository->getCategoryById($id, $fields);
     }
     public function create(array $data)
     {
-        if (isset($data['thumbnail']) && $data['thumbnail'] instanceof UploadedFile) {
-            $data['thumbnail'] = $this->uploadThumbnail($data['thumbnail']);
-        }
-        return $this->categoryRepository->createCategory($data);
+        return DB::transaction(function () use ($data) {
+            if (isset($data['thumbnail']) && $data['thumbnail'] instanceof UploadedFile) {
+                $data['thumbnail'] = $this->uploadThumbnail($data['thumbnail']);
+            }
+            return $this->categoryRepository->createCategory($data);
+        });
     }
 
     public function update(string $slug, array $data): Category
     {
-        $category = $this->categoryRepository->getCategoryBySlug($slug, ['*']);
+        return DB::transaction(function () use ($slug, $data) {
+            $category = $this->categoryRepository->getCategoryBySlug($slug, ['*']);
 
-        if (isset($data['thumbnail']) && $data['thumbnail'] instanceof UploadedFile) {
-            $this->deleteOldThumbnail($category);
-            $data['thumbnail'] = $this->uploadThumbnail($data['thumbnail']);
-        }
+            if (isset($data['thumbnail']) && $data['thumbnail'] instanceof UploadedFile) {
+                $this->deleteOldThumbnail($category);
+                $data['thumbnail'] = $this->uploadThumbnail($data['thumbnail']);
+            }
 
-        return $this->categoryRepository->updateCategory($category, $data);
+            return $this->categoryRepository->updateCategory($category, $data);
+        });
     }
 
     public function delete(string $slug)
     {
-        $category = $this->categoryRepository->getCategoryBySlug($slug, ['*']);
+        return DB::transaction(function () use ($slug) {
+            $category = $this->categoryRepository->getCategoryBySlug($slug, ['*']);
 
-        // Hapus thumbnail sebelum delete data
-        $this->deleteOldThumbnail($category);
+            $this->deleteOldThumbnail($category);
 
-        return $this->categoryRepository->deleteCategory($category);
+            return $this->categoryRepository->deleteCategory($category);
+        });
     }
 
     private function deleteOldThumbnail(Category $category): void
     {
-        if ($category->thumbnail && Storage::disk('public')->exists($category->getRawOriginal('thumbnail'))) {
-            Storage::disk('public')->delete($category->getRawOriginal('thumbnail'));
+        if ($path = $category->getRawOriginal('thumbnail')) {
+            Storage::disk('public')->delete($path);
         }
     }
 

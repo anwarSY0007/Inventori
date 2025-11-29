@@ -59,6 +59,19 @@ export default function Register() {
                             </div>
 
                             <div className="grid gap-2">
+                                <Label htmlFor="email">Phone</Label>
+                                <Input
+                                    id="phone"
+                                    type="number"
+                                    required
+                                    tabIndex={2}
+                                    name="phone"
+                                    placeholder="+62XXXXXXXXX"
+                                />
+                                <InputError message={errors.phone} />
+                            </div>
+
+                            <div className="grid gap-2">
                                 <Label htmlFor="password">Password</Label>
                                 <Input
                                     id="password"

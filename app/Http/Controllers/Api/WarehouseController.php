@@ -29,8 +29,7 @@ class WarehouseController extends Controller
     public function index(): JsonResponse
     {
         try {
-            $field = ['id', 'slug', 'name', 'phone', 'alamat', 'thumbnail', 'description', 'created_at'];
-            $warehouses = $this->warehouseService->getAll($field);
+            $warehouses = $this->warehouseService->getAll();
 
             return ResponseHelpers::jsonResponse(
                 true,

@@ -25,8 +25,7 @@ class CategoryController extends Controller
     public function index(): JsonResponse
     {
         try {
-            $field = ['id', 'name', 'thumbnail', 'tagline', 'slug', 'created_at'];
-            $categories = $this->categoryService->getAll($field);
+            $categories = $this->categoryService->getAll();
 
             return ResponseHelpers::jsonResponse(
                 true,

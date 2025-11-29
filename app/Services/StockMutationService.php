@@ -54,18 +54,14 @@ class StockMutationService
     public function recordMutation(array $data): StockMutation
     {
         return DB::transaction(function () use ($data) {
-            $mutationData = [
-                'product_id' => $data['product_id'],
-                'warehouse_id' => $data['warehouse_id'] ?? null,
-                'merchant_id' => $data['merchant_id'] ?? null,
-                'type' => $data['type'], // 'in' or 'out'
-                'amount' => $data['amount'],
-                'current_stock' => $data['current_stock'],
-                'reference_type' => $data['reference_type'] ?? null,
-                'reference_id' => $data['reference_id'] ?? null,
-                'note' => $data['note'] ?? null,
-                'created_by' => $data['created_by'] ?? Auth::id(),
-            ];
+            $mutationData = array_merge([
+                'warehouse_id'   => null,
+                'merchant_id'    => null,
+                'reference_type' => null,
+                'reference_id'   => null,
+                'note'           => null,
+                'created_by'     => Auth::id(),
+            ], $data);
 
             return $this->stockMutationRepository->createMutation($mutationData);
         });
@@ -134,7 +130,9 @@ class StockMutationService
     private function generateStockReport(array $filters, string $scopeKey, string $scopeId): array
     {
         $filters[$scopeKey] = $scopeId;
+
         $mutations = $this->stockMutationRepository->getAllMutation($filters);
+
         $items = $mutations instanceof LengthAwarePaginator
             ? collect($mutations->items())
             : $mutations;
@@ -147,7 +145,6 @@ class StockMutationService
             $scopeKey         => $scopeId,
             'products'        => $productSummary,
             'total_products'  => $productSummary->count(),
-            // Menggunakan total() dari paginator jika ada, atau count collection
             'total_mutations' => $mutations instanceof LengthAwarePaginator ? $mutations->total() : $mutations->count(),
         ];
     }
@@ -159,16 +156,13 @@ class StockMutationService
     private function calculateProductStats(Collection $items): array
     {
         $product = $items->first()->product;
-
-        // Optimasi: Filter sekali saja
         $totalIn  = $items->where('type', 'in')->sum('amount');
         $totalOut = $items->where('type', 'out')->sum('amount');
-
         $lastMutation = $items->sortByDesc('created_at')->first();
 
         return [
-            'product_id'    => $product->id,
-            'product_name'  => $product->name,
+            'product_id'    => $product->id ?? null,
+            'product_name'  => $product->name ?? 'Unknown Product',
             'total_in'      => $totalIn,
             'total_out'     => $totalOut,
             'net_change'    => $totalIn - $totalOut,
