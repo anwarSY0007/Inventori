@@ -96,15 +96,11 @@ class StockMutationService
      */
     public function getProductHistory(string $productId, array $filters = []): array
     {
-        $mutations = $this->stockMutationRepository->getAllMutation(
-            array_merge(['product_id' => $productId], $filters)
-        );
-
-        $summary = $this->stockMutationRepository->getStockSummary($productId, $filters);
-
         return [
-            'mutations' => $mutations,
-            'summary' => $summary,
+            'mutations' => $this->stockMutationRepository->getAllMutation(
+                array_merge($filters, ['product_id' => $productId])
+            ),
+            'summary'   => $this->stockMutationRepository->getStockSummary($productId, $filters),
         ];
     }
 
@@ -121,32 +117,7 @@ class StockMutationService
      */
     public function getWarehouseReport(string $warehouseId, array $filters = []): array
     {
-        $filters['warehouse_id'] = $warehouseId;
-
-        $mutations = $this->stockMutationRepository->getAllMutation($filters);
-
-        // Group by product
-        $productSummary = $mutations->groupBy('product_id')->map(function ($items) {
-            $product = $items->first()->product;
-            $totalIn = $items->where('type', 'in')->sum('amount');
-            $totalOut = $items->where('type', 'out')->sum('amount');
-
-            return [
-                'product_id' => $product->id,
-                'product_name' => $product->name,
-                'total_in' => $totalIn,
-                'total_out' => $totalOut,
-                'net_change' => $totalIn - $totalOut,
-                'current_stock' => $items->sortByDesc('created_at')->first()->current_stock ?? 0,
-            ];
-        })->values();
-
-        return [
-            'warehouse_id' => $warehouseId,
-            'products' => $productSummary,
-            'total_products' => $productSummary->count(),
-            'total_mutations' => $mutations->total(),
-        ];
+        return $this->generateStockReport($filters, 'warehouse_id', $warehouseId);
     }
 
     /**
@@ -154,31 +125,54 @@ class StockMutationService
      */
     public function getMerchantReport(string $merchantId, array $filters = []): array
     {
-        $filters['merchant_id'] = $merchantId;
+        return $this->generateStockReport($filters, 'merchant_id', $merchantId);
+    }
 
+    /**
+     * Reusable logic for generating report
+     */
+    private function generateStockReport(array $filters, string $scopeKey, string $scopeId): array
+    {
+        $filters[$scopeKey] = $scopeId;
         $mutations = $this->stockMutationRepository->getAllMutation($filters);
+        $items = $mutations instanceof LengthAwarePaginator
+            ? collect($mutations->items())
+            : $mutations;
 
-        // Group by product
-        $productSummary = $mutations->groupBy('product_id')->map(function ($items) {
-            $product = $items->first()->product;
-            $totalIn = $items->where('type', 'in')->sum('amount');
-            $totalOut = $items->where('type', 'out')->sum('amount');
-
-            return [
-                'product_id' => $product->id,
-                'product_name' => $product->name,
-                'total_in' => $totalIn,
-                'total_out' => $totalOut,
-                'net_change' => $totalIn - $totalOut,
-                'current_stock' => $items->sortByDesc('created_at')->first()->current_stock ?? 0,
-            ];
-        })->values();
+        $productSummary = $items->groupBy('product_id')
+            ->map(fn($group) => $this->calculateProductStats($group))
+            ->values();
 
         return [
-            'merchant_id' => $merchantId,
-            'products' => $productSummary,
-            'total_products' => $productSummary->count(),
-            'total_mutations' => $mutations->total(),
+            $scopeKey         => $scopeId,
+            'products'        => $productSummary,
+            'total_products'  => $productSummary->count(),
+            // Menggunakan total() dari paginator jika ada, atau count collection
+            'total_mutations' => $mutations instanceof LengthAwarePaginator ? $mutations->total() : $mutations->count(),
+        ];
+    }
+
+    /**
+     * Extracted method untuk perhitungan statistik produk
+     * Mengurangi kompleksitas cognitive (clean code)
+     */
+    private function calculateProductStats(Collection $items): array
+    {
+        $product = $items->first()->product;
+
+        // Optimasi: Filter sekali saja
+        $totalIn  = $items->where('type', 'in')->sum('amount');
+        $totalOut = $items->where('type', 'out')->sum('amount');
+
+        $lastMutation = $items->sortByDesc('created_at')->first();
+
+        return [
+            'product_id'    => $product->id,
+            'product_name'  => $product->name,
+            'total_in'      => $totalIn,
+            'total_out'     => $totalOut,
+            'net_change'    => $totalIn - $totalOut,
+            'current_stock' => $lastMutation->current_stock ?? 0,
         ];
     }
 
@@ -201,7 +195,6 @@ class StockMutationService
      */
     public function validateStock(string $productId, int $requiredAmount, ?string $warehouseId = null, ?string $merchantId = null): bool
     {
-        $currentStock = $this->getCurrentStock($productId, $warehouseId, $merchantId);
-        return $currentStock >= $requiredAmount;
+        return $this->getCurrentStock($productId, $warehouseId, $merchantId) >= $requiredAmount;
     }
 }

@@ -60,6 +60,13 @@ class TransactionService
             // Validasi merchant
             $merchant = $this->merchantRepository->getMerchantById($data['merchant_id'], ['*']);
 
+            $productIds = array_column($data['products'], 'product_id');
+
+            $merchantProducts = $merchant->products()
+                ->whereIn('products.id', $productIds)
+                ->get()
+                ->keyBy('id');
+
             // Generate invoice code
             $invoiceCode = $this->transactionRepository->generateInvoiceCode($data['merchant_id']);
 
@@ -90,9 +97,7 @@ class TransactionService
                 $qty = $item['qty'];
 
                 // Get product from merchant
-                $merchantProduct = $merchant->products()
-                    ->where('product_id', $productId)
-                    ->first();
+                $merchantProduct = $merchantProducts->get($productId);
 
                 if (!$merchantProduct) {
                     throw ValidationException::withMessages([
