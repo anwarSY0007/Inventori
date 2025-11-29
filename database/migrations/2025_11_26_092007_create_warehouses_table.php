@@ -20,7 +20,7 @@ return new class extends Migration
             $table->text('alamat');
             $table->text('description')->nullable();
             $table->string('thumbnail')->nullable();
-            
+
             $table->softDeletes();
             $table->timestamps();
         });

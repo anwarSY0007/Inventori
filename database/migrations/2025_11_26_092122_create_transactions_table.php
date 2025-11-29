@@ -1,5 +1,7 @@
 <?php
 
+use App\Enum\PaymentEnum;
+use App\Enum\TransactionEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -17,14 +19,18 @@ return new class extends Migration
             $table->string('invoice_code')->unique();
 
             $table->string('slug')->unique();
-            $table->string('name')->index();
-            $table->string('phone')->index();
-            $table->unsignedInteger('sub_total');
-            $table->unsignedInteger('tax_total');
-            $table->unsignedInteger('grand_total');
+            $table->string('name')->default('Guest')->index();
+            $table->string('phone')->index()->nullable();
+            $table->unsignedBigInteger('sub_total');
+            $table->unsignedBigInteger('tax_total')->default(0);
+            $table->unsignedBigInteger('grand_total');
 
-            $table->enum('status', ['pending', 'paid', 'failed', 'cancelled'])->default('pending')->index();
-            $table->string('payment_method')->nullable();
+            $table->enum('status', array_column(TransactionEnum::cases(), 'value'))
+                ->default(TransactionEnum::PENDING->value)
+                ->index();
+            $table->string('payment_method')
+                ->nullable()
+                ->default(PaymentEnum::CASH->value);
             $table->string('payment_reference')->nullable();
             $table->timestamp('paid_at')->nullable();
 

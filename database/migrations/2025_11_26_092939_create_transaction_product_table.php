@@ -12,26 +12,19 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('transaction_product', function (Blueprint $table) {
-            $table->uuid('transaction_id');
-            $table->uuid('product_id');
+            $table->foreignUuid('transaction_id')
+                ->constrained('transactions')
+                ->cascadeOnDelete();
+            $table->foreignUuid('product_id')
+                ->constrained('products')
+                ->cascadeOnDelete();
 
-            $table->unsignedInteger('qty');
-            $table->unsignedInteger('sub_total');
-            $table->unsignedInteger('price');
-
-            $table->foreign('transaction_id')
-                ->references('id')
-                ->on('transactions')
-                ->onDelete('cascade');
-            $table->foreign('product_id')
-                ->references('id')
-                ->on('products')
-                ->onDelete('cascade');
-
+            $table->integer('qty');
+            $table->unsignedBigInteger('price');
+            $table->unsignedBigInteger('sub_total');
 
             $table->primary(['transaction_id', 'product_id']);
 
-            $table->index('transaction_id');
             $table->index('product_id');
             $table->timestamps();
         });
