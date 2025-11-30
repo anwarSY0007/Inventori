@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('teams', function (Blueprint $table) {
             $table->uuid('id')->primary();
+            $table->string('slug')->unique();
             $table->foreignUuid('keeper_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('name');
             $table->timestamps();
@@ -26,7 +27,6 @@ return new class extends Migration
                 ->constrained('users')
                 ->cascadeOnDelete();
             $table->primary(['team_id', 'user_id']);
-
             $table->index('user_id');
             $table->timestamps();
         });

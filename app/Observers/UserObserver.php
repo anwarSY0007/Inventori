@@ -9,16 +9,16 @@ class UserObserver
 {
     public function created(User $user)
     {
-        $teamName = strtok($user->name, " ") . "'s team";
+        // $teamName = strtok($user->name, " ") . "'s team";
 
-        $team = Team::create([
-            'name' => $teamName,
-            'keeper_id' => $user->id
-        ]);
+        // $team = Team::create([
+        //     'name' => $teamName,
+        //     'keeper_id' => $user->id
+        // ]);
 
-        $user->teams()->attach($team->id);
+        // $user->teams()->attach($team->id);
 
-        $user->currentTeams()->associate($team);
-        $user->saveQuietly();
+        // $user->currentTeams()->associate($team);
+        // $user->saveQuietly();
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Actions\Fortify;
 
 use App\Models\User;
+use App\Services\UserService;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
@@ -10,12 +11,9 @@ use Laravel\Fortify\Contracts\CreatesNewUsers;
 class CreateNewUser implements CreatesNewUsers
 {
     use PasswordValidationRules;
-
-    /**
-     * Validate and create a newly registered user.
-     *
-     * @param  array<string, string>  $input
-     */
+    public function __construct(
+        protected UserService $userService
+    ) {}
     public function create(array $input): User
     {
         Validator::make($input, [
@@ -31,11 +29,12 @@ class CreateNewUser implements CreatesNewUsers
             'password' => $this->passwordRules(),
         ])->validate();
 
-        return User::create([
+        return $this->userService->register([
             'name' => $input['name'],
             'phone' => $input['phone'],
             'email' => $input['email'],
             'password' => $input['password'],
+            'role' => 'customer',
         ]);
     }
 }

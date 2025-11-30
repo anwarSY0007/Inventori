@@ -19,7 +19,6 @@ use Illuminate\Support\Facades\Storage;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[ObservedBy(UserObserver::class)]
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
@@ -54,7 +53,8 @@ class User extends Authenticatable
     public function getAvatarAttribute($value)
     {
         if (!$value) {
-            return asset('storage/img/default.png');
+            $name = urlencode($this->name);
+            return "https://ui-avatars.com/api/?name={$name}&color=7F9CF5&background=EBF4FF";
         }
 
         return url(Storage::url($value));
