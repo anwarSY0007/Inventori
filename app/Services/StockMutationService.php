@@ -92,11 +92,17 @@ class StockMutationService
      */
     public function getProductHistory(string $productId, array $filters = []): array
     {
+        $mutations = $this->stockMutationRepository->getAllMutation(
+            array_merge($filters, ['product_id' => $productId]),
+            ['*'],
+            25,
+            ['warehouse', 'merchant', 'creator', 'reference'] // Override default relations (hapus product)
+        );
+        $summary = $this->stockMutationRepository->getStockSummary($productId, $filters);
+
         return [
-            'mutations' => $this->stockMutationRepository->getAllMutation(
-                array_merge($filters, ['product_id' => $productId])
-            ),
-            'summary'   => $this->stockMutationRepository->getStockSummary($productId, $filters),
+            'mutations' => $mutations,
+            'summary'   => $summary,
         ];
     }
 

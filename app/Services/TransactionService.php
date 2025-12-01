@@ -64,6 +64,7 @@ class TransactionService
 
             $merchantProducts = $merchant->products()
                 ->whereIn('products.id', $productIds)
+                ->lockForUpdate()
                 ->get()
                 ->keyBy('id');
 
@@ -203,35 +204,34 @@ class TransactionService
      */
     private function restoreStock(Transaction $transaction): void
     {
-        $merchant = $transaction->merchant;
+        $merchantId = $transaction->merchant_id;
 
         foreach ($transaction->transactionProducts as $item) {
             $productId = $item->product_id;
             $qty = $item->qty;
 
             // Get current stock
-            $merchantProduct = $merchant->products()
+            DB::table('merchant_product')
+                ->where('merchant_id', $merchantId)
                 ->where('product_id', $productId)
-                ->first();
+                ->increment('stock', $qty);
 
-            if ($merchantProduct) {
-                // Restore stock
-                $newStock = $merchantProduct->pivot->stock + $qty;
-                $this->merchantRepository->updateProductStock($merchant, $productId, $newStock);
-
-                // Record stock mutation
-                $this->stockMutationService->recordMutation([
-                    'product_id' => $productId,
-                    'merchant_id' => $merchant->id,
-                    'type' => 'in',
-                    'amount' => $qty,
-                    'current_stock' => $newStock,
-                    'reference_type' => Transaction::class,
-                    'reference_id' => $transaction->id,
-                    'note' => "Pembatalan Transaksi - Invoice: {$transaction->invoice_code}",
-                    'created_by' => Auth::id()
-                ]);
-            }
+            $this->stockMutationService->recordMutation([
+                'product_id' => $productId,
+                'merchant_id' => $merchantId,
+                'type' => 'in',
+                'amount' => $qty,
+                // Note: current_stock di sini mungkin perlu query ulang kalau mau akurat banget, 
+                // tapi untuk log history biasanya acceptable pakai data estimasi atau query ulang setelah increment.
+                'current_stock' => DB::table('merchant_product')
+                    ->where('merchant_id', $merchantId)
+                    ->where('product_id', $productId)
+                    ->value('stock'),
+                'reference_type' => Transaction::class,
+                'reference_id' => $transaction->id,
+                'note' => "Pembatalan Transaksi - Invoice: {$transaction->invoice_code}",
+                'created_by' => Auth::id()
+            ]);
         }
     }
 

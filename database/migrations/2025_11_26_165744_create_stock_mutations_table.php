@@ -15,20 +15,22 @@ return new class extends Migration
             $table->uuid('id')->primary();
 
             $table->foreignUuid('product_id')->constrained()->cascadeOnDelete();
-            $table->foreignUuid('warehouse_id')->nullable()->constrained('warehouses')->cascadeOnDelete(); 
+            $table->foreignUuid('warehouse_id')->nullable()->constrained('warehouses')->cascadeOnDelete();
             $table->foreignUuid('merchant_id')->nullable()->constrained('merchants')->cascadeOnDelete();
-            
+
             $table->enum('type', ['in', 'out'])->index();
             $table->unsignedInteger('amount');
             $table->integer('current_stock');
-        
+
             $table->string('reference_type')->nullable();
             $table->uuid('reference_id')->nullable();
             $table->index(['reference_type', 'reference_id']);
             $table->text('note')->nullable();
-            
-            $table->foreignUuid('created_by')->constrained('users');
 
+            $table->foreignUuid('created_by')->constrained('users');
+            $table->index(['product_id', 'created_at']); // History by product
+            $table->index(['warehouse_id', 'type', 'created_at']); // Warehouse reports
+            $table->index(['merchant_id', 'type', 'created_at']); // Merchant reports
             $table->softDeletes();
             $table->timestamps();
         });
