@@ -93,11 +93,9 @@ class StockMutationService
     public function getProductHistory(string $productId, array $filters = []): array
     {
         $mutations = $this->stockMutationRepository->getAllMutation(
-            array_merge($filters, ['product_id' => $productId]),
-            ['*'],
-            25,
-            ['warehouse', 'merchant', 'creator', 'reference'] // Override default relations (hapus product)
+            array_merge($filters, ['product_id' => $productId])
         );
+
         $summary = $this->stockMutationRepository->getStockSummary($productId, $filters);
 
         return [
@@ -161,6 +159,17 @@ class StockMutationService
      */
     private function calculateProductStats(Collection $items): array
     {
+        if ($items->isEmpty()) {
+            return [
+                'product_id'    => null,
+                'product_name'  => 'Unknown Product',
+                'total_in'      => 0,
+                'total_out'     => 0,
+                'net_change'    => 0,
+                'current_stock' => 0,
+            ];
+        }
+
         $product = $items->first()->product;
         $totalIn  = $items->where('type', 'in')->sum('amount');
         $totalOut = $items->where('type', 'out')->sum('amount');

@@ -12,6 +12,7 @@ use Exception;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class WarehouseProductController extends Controller
@@ -29,15 +30,17 @@ class WarehouseProductController extends Controller
     public function attachProduct(WarehouseProductAttachRequest $request, string $warehouseSlug): JsonResponse
     {
         try {
-            $products = $request->validated()['products'];
-            $warehouse = $this->warehouseService->addProducts($warehouseSlug, $products);
+            return DB::transaction(function () use ($request, $warehouseSlug) {
+                $products = $request->validated()['products'];
+                $warehouse = $this->warehouseService->addProducts($warehouseSlug, $products);
 
-            return ResponseHelpers::jsonResponse(
-                true,
-                'Products attached to warehouse successfully',
-                new WarehouseResource($warehouse),
-                200
-            );
+                return ResponseHelpers::jsonResponse(
+                    true,
+                    'Products attached to warehouse successfully',
+                    new WarehouseResource($warehouse),
+                    200
+                );
+            });
         } catch (ModelNotFoundException) {
             return ResponseHelpers::jsonResponse(
                 false,
@@ -66,15 +69,17 @@ class WarehouseProductController extends Controller
     public function updateStock(WarehouseProductStockRequest $request, string $warehouseSlug, string $productId): JsonResponse
     {
         try {
-            $stock = $request->validated()['stock'];
-            $warehouse = $this->warehouseService->updateProductStock($warehouseSlug, $productId, $stock);
+            return DB::transaction(function () use ($request, $warehouseSlug, $productId) {
+                $stock = $request->validated()['stock'];
+                $warehouse = $this->warehouseService->updateProductStock($warehouseSlug, $productId, $stock);
 
-            return ResponseHelpers::jsonResponse(
-                true,
-                'Product stock updated successfully',
-                new WarehouseResource($warehouse),
-                200
-            );
+                return ResponseHelpers::jsonResponse(
+                    true,
+                    'Product stock updated successfully',
+                    new WarehouseResource($warehouse),
+                    200
+                );
+            });
         } catch (ModelNotFoundException) {
             return ResponseHelpers::jsonResponse(
                 false,
@@ -104,14 +109,16 @@ class WarehouseProductController extends Controller
     public function detachProduct(string $warehouseSlug, string $productId): JsonResponse
     {
         try {
-            $warehouse = $this->warehouseService->removeProducts($warehouseSlug, [$productId]);
+            return DB::transaction(function () use ($warehouseSlug, $productId) {
+                $warehouse = $this->warehouseService->removeProducts($warehouseSlug, [$productId]);
 
-            return ResponseHelpers::jsonResponse(
-                true,
-                'Product detached from warehouse successfully',
-                new WarehouseResource($warehouse),
-                200
-            );
+                return ResponseHelpers::jsonResponse(
+                    true,
+                    'Product detached from warehouse successfully',
+                    new WarehouseResource($warehouse),
+                    200
+                );
+            });
         } catch (ModelNotFoundException) {
             return ResponseHelpers::jsonResponse(
                 false,

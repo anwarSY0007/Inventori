@@ -13,6 +13,7 @@ use Exception;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class MerchantProductController extends Controller
@@ -94,15 +95,17 @@ class MerchantProductController extends Controller
     public function attachProduct(MerchantProductAttachRequest $request, string $merchantSlug): JsonResponse
     {
         try {
-            $products = $request->validated()['products'];
-            $merchant = $this->merchantService->addProducts($merchantSlug, $products);
+            return DB::transaction(function () use ($request, $merchantSlug) {
+                $products = $request->validated()['products'];
+                $merchant = $this->merchantService->addProducts($merchantSlug, $products);
 
-            return ResponseHelpers::jsonResponse(
-                true,
-                'Products attached to merchant successfully',
-                new MerchantResource($merchant),
-                200
-            );
+                return ResponseHelpers::jsonResponse(
+                    true,
+                    'Products attached to merchant successfully',
+                    new MerchantResource($merchant),
+                    200
+                );
+            });
         } catch (ModelNotFoundException) {
             return ResponseHelpers::jsonResponse(
                 false,
@@ -131,15 +134,17 @@ class MerchantProductController extends Controller
     public function updateStock(MerchantProductStockRequest $request, string $merchantSlug, string $productId): JsonResponse
     {
         try {
-            $stock = $request->validated()['stock'];
-            $merchant = $this->merchantService->updateProductStock($merchantSlug, $productId, $stock);
+            return DB::transaction(function () use ($request, $merchantSlug, $productId) {
+                $stock = $request->validated()['stock'];
+                $merchant = $this->merchantService->updateProductStock($merchantSlug, $productId, $stock);
 
-            return ResponseHelpers::jsonResponse(
-                true,
-                'Product stock updated successfully',
-                new MerchantResource($merchant),
-                200
-            );
+                return ResponseHelpers::jsonResponse(
+                    true,
+                    'Product stock updated successfully',
+                    new MerchantResource($merchant),
+                    200
+                );
+            });
         } catch (ModelNotFoundException) {
             return ResponseHelpers::jsonResponse(
                 false,
@@ -169,14 +174,16 @@ class MerchantProductController extends Controller
     public function detachProduct(string $merchantSlug, string $productId): JsonResponse
     {
         try {
-            $merchant = $this->merchantService->removeProducts($merchantSlug, [$productId]);
+            return DB::transaction(function () use ($merchantSlug, $productId) {
+                $merchant = $this->merchantService->removeProducts($merchantSlug, [$productId]);
 
-            return ResponseHelpers::jsonResponse(
-                true,
-                'Product detached from merchant successfully',
-                new MerchantResource($merchant),
-                200
-            );
+                return ResponseHelpers::jsonResponse(
+                    true,
+                    'Product detached from merchant successfully',
+                    new MerchantResource($merchant),
+                    200
+                );
+            });
         } catch (ModelNotFoundException) {
             return ResponseHelpers::jsonResponse(
                 false,

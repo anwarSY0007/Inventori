@@ -2,9 +2,11 @@
     "semi": true,
     "singleQuote": true,
     "singleAttributePerLine": false,
-    "htmlWhitespaceSensitivity": "css",
-    "printWidth": 80,
+    "htmlWhitespaceSensitivity": "ignore",
+    "printWidth": 100,
     "plugins": [
+        "@prettier/plugin-php",
+        "prettier-plugin-blade",
         "prettier-plugin-organize-imports",
         "prettier-plugin-tailwindcss"
     ],
@@ -13,23 +15,55 @@
     "tabWidth": 4,
     "overrides": [
         {
-            "files": "**/*.yml",
+            "files": ["*.php"],
+            "options": {
+                "parser": "php",
+                "phpVersion": "8.2",
+                "tabWidth": 4,
+                "singleQuote": true
+            }
+        },
+        {
+            "files": ["*.blade.php"],
+            "options": {
+                "parser": "blade",
+                "tabWidth": 4,
+                "sortTailwindcssClasses": true,
+                "wrapAttributes": "auto"
+            }
+        },
+        {
+            "files": ["*.js", "*.jsx", "*.ts", "*.tsx"],
+            "options": {
+                "tabWidth": 2,
+                "singleAttributePerLine": false
+            }
+        },
+        {
+            "files": ["*.yml", "*.yaml"],
             "options": {
                 "tabWidth": 2
             }
         },
         {
-            "files": "*.md",
+            "files": ["*.md"],
             "options": {
-                "proseWrap": "always"
+                "proseWrap": "always",
+                "tabWidth": 2
+            }
+        },
+        {
+            "files": ["*.json"],
+            "options": {
+                "tabWidth": 2
             }
         }
     ],
-    "trailingComma": "es5",
+    "trailingComma": "all",
     "bracketSpacing": true,
     "arrowParens": "always",
     "endOfLine": "lf",
     "embeddedLanguageFormatting": "auto",
-    "jsxSingleQuote": false,
+    "jsxSingleQuote": true,
     "quoteProps": "as-needed"
 }

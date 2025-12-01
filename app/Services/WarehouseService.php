@@ -23,7 +23,7 @@ class WarehouseService
     public function getAll(array $field = []): LengthAwarePaginator
     {
         return $this->warehouseRepository->getAllWarehouse(
-            empty($fields) ? self::DEFAULT_FIELDS : $fields
+            empty($field) ? self::DEFAULT_FIELDS : $field
         );
     }
 
