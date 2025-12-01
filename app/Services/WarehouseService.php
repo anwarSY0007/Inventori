@@ -4,9 +4,12 @@ namespace App\Services;
 
 use App\Models\Warehouse;
 use App\Repositories\WarehouseRepository;
+use Exception;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class WarehouseService
@@ -56,9 +59,8 @@ class WarehouseService
 
                 $warehouse = $this->warehouseRepository->createWarehouse($data);
 
-                if (!empty($data['products'])) {
-                    $this->warehouseRepository->attachProducts($warehouse, $data['products']);
-                }
+                // [Audit Log]
+                Log::info("Warehouse Created: {$warehouse->name}", ['created_by' => Auth::id()]);
 
                 return $warehouse;
             }
@@ -79,13 +81,12 @@ class WarehouseService
                     $data['thumbnail'] = $this->uploadThumbnail($data['thumbnail']);
                 }
 
-                $warehouse = $this->warehouseRepository->updateWarehouse($warehouse, $data);
+                $updatedWarehouse = $this->warehouseRepository->updateWarehouse($warehouse, $data);
 
-                if (isset($data['products'])) {
-                    $this->warehouseRepository->syncProducts($warehouse, $data['products']);
-                }
+                // [Audit Log]
+                Log::info("Warehouse Updated: {$updatedWarehouse->name}", ['id' => $updatedWarehouse->id]);
 
-                return $warehouse;
+                return $updatedWarehouse;
             }
         );
     }
@@ -97,11 +98,19 @@ class WarehouseService
     {
         return DB::transaction(function () use ($slug) {
             $warehouse = $this->warehouseRepository->getWarehouseBySlug($slug, ['*']);
+            $hasStock = $warehouse->products()->wherePivot('stock', '>', 0)->exists();
+            if ($hasStock) {
+                throw new Exception("Gudang tidak dapat dihapus karena masih memiliki stok produk aktif.");
+            }
 
             $this->deleteOldThumbnail($warehouse);
-            $this->warehouseRepository->detachProducts($warehouse);
+            $deleted = $this->warehouseRepository->deleteWarehouse($warehouse);
 
-            return $this->warehouseRepository->deleteWarehouse($warehouse);
+            if ($deleted) {
+                Log::warning("Warehouse Deleted: {$warehouse->name}", ['deleted_by' => Auth::id()]);
+            }
+
+            return $deleted;
         });
     }
 
@@ -110,10 +119,18 @@ class WarehouseService
      */
     public function addProducts(string $slug, array $products): Warehouse
     {
-        $warehouse = $this->warehouseRepository->getWarehouseBySlug($slug, ['id']);
-        $this->warehouseRepository->attachProducts($warehouse, $products);
+        return DB::transaction(function () use ($slug, $products) {
+            $warehouse = $this->warehouseRepository->getWarehouseBySlug($slug, ['id', 'name']);
+            $this->warehouseRepository->attachProducts($warehouse, $products);
 
-        return $warehouse->fresh(['products.category']);
+            // [Audit Log]
+            Log::info("Products Attached to Warehouse: {$warehouse->name}", [
+                'count' => count($products),
+                'user_id' => Auth::id()
+            ]);
+
+            return $warehouse->fresh(['products.category']);
+        });
     }
 
     /**
@@ -121,8 +138,20 @@ class WarehouseService
      */
     public function updateProductStock(string $slug, string $productId, int $stock): Warehouse
     {
-        $warehouse = $this->warehouseRepository->getWarehouseBySlug($slug, ['id']);
+        if ($stock < 0) {
+            throw new Exception("Stok gudang tidak boleh kurang dari 0.");
+        }
+
+        $warehouse = $this->warehouseRepository->getWarehouseBySlug($slug, ['id', 'name']);
         $this->warehouseRepository->updateProductStock($warehouse, $productId, $stock);
+
+        // [Audit Log]
+        Log::info("Warehouse Stock Updated Manually", [
+            'warehouse' => $warehouse->name,
+            'product_id' => $productId,
+            'new_stock' => $stock,
+            'updated_by' => Auth::id()
+        ]);
 
         return $warehouse->fresh(['products.category']);
     }
@@ -132,16 +161,42 @@ class WarehouseService
      */
     public function removeProducts(string $slug, array $productIds = []): Warehouse
     {
-        $warehouse = $this->warehouseRepository->getWarehouseBySlug($slug, ['id']);
-        $this->warehouseRepository->detachProducts($warehouse, $productIds);
+        return DB::transaction(
+            function () use ($slug, $productIds) {
+                $warehouse = $this->warehouseRepository->getWarehouseBySlug($slug, ['id', 'name']);
 
-        return $warehouse->fresh(['products.category']);
+                $productsWithStock = $warehouse->products()
+                    ->whereIn('products.id', $productIds)
+                    ->wherePivot('stock', '>', 0)
+                    ->get(['products.id', 'products.name']);
+
+                if ($productsWithStock->isNotEmpty()) {
+                    // Ambil nama-nama produknya biar user tau mana yang bermasalah
+                    $names = $productsWithStock->pluck('name')->join(', ');
+
+                    throw new Exception(
+                        "Gagal menghapus produk. Produk berikut masih memiliki stok di gudang ini: [{$names}]. " .
+                            "Harap kosongkan stok terlebih dahulu melalui Transfer atau Mutasi Keluar."
+                    );
+                }
+
+                // Eksekusi hapus (Detach) jika semua stok sudah 0
+                $this->warehouseRepository->detachProducts($warehouse, $productIds);
+
+                Log::warning("Products Removed/Detached from Warehouse: {$warehouse->name}", [
+                    'product_ids' => $productIds,
+                    'user_id' => Auth::id()
+                ]);
+
+                return $warehouse->fresh(['products.category']);
+            }
+        );
     }
 
     /**
      * Delete old thumbnail
      */
-    private function deleteOldThumbnail(Warehouse $warehouse): void
+    private function deleteOldThumbnail(Warehouse $warehouse)
     {
         if ($oldThumbnail = $warehouse->getRawOriginal('thumbnail')) {
             Storage::disk('public')->delete($oldThumbnail);

@@ -35,6 +35,8 @@ return new class extends Migration
             $table->index('product_id');
             $table->index('stock');
         });
+
+        DB::statement('ALTER TABLE warehouse_product ADD CONSTRAINT check_warehouse_stock_non_negative CHECK (stock >= 0)');
     }
 
     /**

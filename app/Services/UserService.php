@@ -2,11 +2,15 @@
 
 namespace App\Services;
 
+use App\Models\Role;
 use App\Models\User;
 use App\Repositories\UserRepository;
 use App\Repositories\TeamRepository;
+use Exception;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class UserService
@@ -17,10 +21,8 @@ class UserService
     ) {}
 
     /**
-     * Register new user with automatic team creation
      * 
-     * Ini adalah SATU-SATUNYA tempat untuk handle user registration
-     * Observer sudah di-disable untuk menghindari loop
+     * Register new user with automatic team creation
      */
     public function register(array $data): User
     {
@@ -32,6 +34,9 @@ class UserService
                 'password' => Hash::make($data['password']),
             ]);
             $this->userRepository->assignRole($user, 'customer');
+
+            // [Audit Log]
+            Log::info("New User Registered: {$user->email}", ['user_id' => $user->id, 'role' => 'customer']);
 
             return $user;
         });
@@ -47,26 +52,28 @@ class UserService
                 'phone' => $data['phone'],
                 'password' => Hash::make($data['password']),
             ]);
+            $role = $data['role'] ?? 'merchant_owner';
+            $this->userRepository->assignRole($user, $role);
 
-            // 2. Create Personal Team
-            $teamName = $this->generateTeamName($user->name);
+            // Create Team/Store
+            $teamName = $data['store_name'] ?? $this->generateTeamName($user->name);
+
             $team = $this->teamRepository->createTeam([
                 'name' => $teamName,
                 'keeper_id' => $user->id,
             ]);
 
-            // 3. Attach user to team (many-to-many)
-            $this->userRepository->attachToTeam($user, $team->id);
-
-            // 4. Set as current team
+            $this->teamRepository->addMember($team, $user->id);
             $this->userRepository->setCurrentTeam($user, $team->id);
 
-            // 5. Assign default role (opsional)
-            if (isset($data['role'])) {
-                $this->userRepository->assignRole($user, $data['role']);
-            }
+            // [Audit Log]
+            Log::info("Merchant User Created: {$user->email}", [
+                'user_id' => $user->id,
+                'team_id' => $team->id,
+                'created_by' => Auth::id()
+            ]);
 
-            return $user->fresh(['teams', 'currentTeams']);
+            return $user;
         });
     }
 
@@ -95,6 +102,8 @@ class UserService
                 $updateData['avatar'] = $data['avatar'];
             }
 
+            Log::info("User Profile Updated: {$user->id}");
+
             return $this->userRepository->update($user, $updateData);
         });
     }
@@ -108,8 +117,15 @@ class UserService
         if (!$user->teams()->where('teams.id', $teamId)->exists()) {
             throw new \Exception('User is not a member of this team');
         }
+        $updatedUser = $this->userRepository->setCurrentTeam($user, $teamId);
 
-        return $this->userRepository->setCurrentTeam($user, $teamId);
+        // [Audit Log]
+        Log::info("User Switched Team", [
+            'user_id' => $user->id,
+            'new_team_id' => $teamId
+        ]);
+
+        return $updatedUser;
     }
 
     /**
@@ -117,7 +133,18 @@ class UserService
      */
     public function assignRole(User $user, string $role): void
     {
+        if (!Role::where('name', $role)->exists()) {
+            throw new Exception("Role '{$role}' tidak ditemukan.");
+        }
+
         $this->userRepository->assignRole($user, $role);
+
+        // [Audit Log]
+        Log::info("Role Assigned to User", [
+            'target_user_id' => $user->id,
+            'role' => $role,
+            'assigned_by' => Auth::id()
+        ]);
     }
 
     /**

@@ -4,9 +4,12 @@ namespace App\Services;
 
 use App\Models\Product;
 use App\Repositories\ProductRepository;
+use Exception;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class ProductService
@@ -45,7 +48,17 @@ class ProductService
                 $data['thumbnail'] = $this->uploadThumbnail($data['thumbnail']);
             }
 
-            return $this->productRepository->createProduct($data);
+            $product = $this->productRepository->createProduct($data);
+
+            // [Audit Log]
+            Log::info("Product Created: {$product->name}", [
+                'product_id' => $product->id,
+                'category_id' => $product->category_id,
+                'price' => $product->price,
+                'created_by' => Auth::id()
+            ]);
+
+            return $product;
         });
     }
 
@@ -58,8 +71,15 @@ class ProductService
                 $this->deleteOldThumbnail($product);
                 $data['thumbnail'] = $this->uploadThumbnail($data['thumbnail']);
             }
+            $updatedProduct = $this->productRepository->updateProduct($product, $data);
 
-            return $this->productRepository->updateProduct($product, $data);
+            // [Audit Log]
+            Log::info("Product Updated: {$updatedProduct->name}", [
+                'product_id' => $updatedProduct->id,
+                'updated_by' => Auth::id()
+            ]);
+
+            return $updatedProduct;
         });
     }
 
@@ -68,9 +88,35 @@ class ProductService
         return DB::transaction(function () use ($slug) {
             $product = $this->productRepository->getProductBySlug($slug, ['*']);
 
+            $warehouseStock = DB::table('warehouse_product')
+                ->where('product_id', $product->id)
+                ->sum('stock');
+
+            if ($warehouseStock > 0) {
+                throw new Exception("Produk tidak dapat dihapus karena masih ada stok ({$warehouseStock}) di Gudang.");
+            }
+
+            // [Validation] Cek apakah masih ada stok di Merchant
+            $merchantStock = DB::table('merchant_product')
+                ->where('product_id', $product->id)
+                ->sum('stock');
+
+            if ($merchantStock > 0) {
+                throw new Exception("Produk tidak dapat dihapus karena masih ada stok ({$merchantStock}) tersebar di Merchant.");
+            }
+
             $this->deleteOldThumbnail($product);
 
-            return $this->productRepository->deleteProduct($product);
+            $deleted = $this->productRepository->deleteProduct($product);
+
+            if ($deleted) {
+                Log::warning("Product Deleted: {$product->name}", [
+                    'product_id' => $product->id,
+                    'deleted_by' => Auth::id()
+                ]);
+            }
+
+            return $deleted;
         });
     }
 

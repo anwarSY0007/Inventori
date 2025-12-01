@@ -37,9 +37,13 @@ return new class extends Migration
             $table->foreignUuid('merchant_id')->constrained()->cascadeOnDelete();
             $table->foreignUuid('cashier_id')->nullable()->constrained('users')->nullOnDelete();
 
+            $table->index('invoice_code');
+            $table->index(['merchant_id', 'status', 'created_at']);
             $table->softDeletes();
             $table->timestamps();
         });
+
+        DB::statement('ALTER TABLE transactions ADD CONSTRAINT check_grand_total_valid CHECK (grand_total >= sub_total)');
     }
 
     /**

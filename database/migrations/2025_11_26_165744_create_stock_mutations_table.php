@@ -34,6 +34,8 @@ return new class extends Migration
             $table->softDeletes();
             $table->timestamps();
         });
+
+        DB::statement('ALTER TABLE stock_mutations ADD CONSTRAINT check_mutation_stock_non_negative CHECK (current_stock >= 0)');
     }
 
     /**

@@ -4,10 +4,12 @@ namespace App\Services;
 
 use App\Models\StockMutation;
 use App\Repositories\StockMutationRepository;
+use Exception;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class StockMutationService
 {
@@ -54,6 +56,9 @@ class StockMutationService
     public function recordMutation(array $data): StockMutation
     {
         return DB::transaction(function () use ($data) {
+            if (!in_array($data['type'] ?? '', ['in', 'out'])) {
+                throw new Exception("Tipe mutasi tidak valid (harus 'in' atau 'out').");
+            }
             $mutationData = array_merge([
                 'warehouse_id'   => null,
                 'merchant_id'    => null,
@@ -63,7 +68,16 @@ class StockMutationService
                 'created_by'     => Auth::id(),
             ], $data);
 
-            return $this->stockMutationRepository->createMutation($mutationData);
+            $mutation = $this->stockMutationRepository->createMutation($mutationData);
+
+            Log::info("Stock Mutation Recorded: {$mutation->type} - Product ID: {$mutation->product_id}", [
+                'amount' => $mutation->amount,
+                'current_stock' => $mutation->current_stock,
+                'reference' => $mutation->reference_type . ':' . $mutation->reference_id,
+                'user_id' => $mutation->created_by,
+            ]);
+
+            return $mutation;
         });
     }
 
@@ -83,6 +97,27 @@ class StockMutationService
      */
     public function recordStockOut(array $data): StockMutation
     {
+        if (empty($data['product_id']) || empty($data['amount'])) {
+            throw new Exception("Product ID dan Amount wajib diisi untuk mutasi keluar.");
+        }
+
+        $warehouseId = $data['warehouse_id'] ?? null;
+        $merchantId  = $data['merchant_id'] ?? null;
+
+        if (!isset($data['current_stock'])) {
+            $isSufficient = $this->validateStock(
+                $data['product_id'],
+                $data['amount'],
+                $warehouseId,
+                $merchantId
+            );
+
+            if (!$isSufficient) {
+                $current = $this->getCurrentStock($data['product_id'], $warehouseId, $merchantId);
+                throw new Exception("Stok tidak mencukupi untuk mutasi keluar. Tersedia: {$current}, Diminta: {$data['amount']}");
+            }
+        }
+
         $data['type'] = 'out';
         return $this->recordMutation($data);
     }

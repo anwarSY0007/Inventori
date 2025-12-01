@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Repositories\MerchantRepository;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class MerchantProductService
@@ -26,6 +27,7 @@ class MerchantProductService
             $amount      = $data['stock'];
             $userId      = Auth::id();
 
+            // 1. Validasi Eksistensi di Gudang
             $existsInWarehouse = DB::table('warehouse_product')
                 ->where('warehouse_id', $warehouseId)
                 ->where('product_id', $productId)
@@ -36,73 +38,73 @@ class MerchantProductService
                     'product_id' => ['Produk tidak ditemukan di warehouse ini']
                 ]);
             }
+
+            // 2. Kurangi Stok Gudang (Atomic Decrement)
+            // Mengembalikan jumlah baris yang ter-update (0 jika stok tidak cukup)
             $affected = DB::table('warehouse_product')
                 ->where('warehouse_id', $warehouseId)
                 ->where('product_id', $productId)
-                ->where('stock', '>=', $amount)
+                ->where('stock', '>=', $amount) // [Validation] Pastikan stok cukup di query level
                 ->decrement('stock', $amount);
 
             if ($affected === 0) {
                 throw ValidationException::withMessages([
-                    'stock' => ["Stok di warehouse tidak mencukupi atau data berubah saat transaksi."]
+                    'stock' => ['Stok di warehouse tidak mencukupi untuk transfer ini.']
                 ]);
             }
 
-            $currentWarehouseStock = DB::table('warehouse_product')
-                ->where('warehouse_id', $warehouseId)
-                ->where('product_id', $productId)
-                ->value('stock');
+            // 3. Tambah Stok Merchant (Update or Create)
+            $merchant = $this->merchantRepository->getMerchantById($data['merchant_id'], ['id', 'name']);
 
-            $this->stockMutationService->recordStockOut([
-                'product_id' => $productId,
-                'warehouse_id' => $warehouseId,
-                'amount' => $amount,
-                'current_stock' => $currentWarehouseStock,
-                'note' => "Transfer ke Merchant (Assign)",
-                'created_by' => $userId
-            ]);
-
-            $merchantId = $data['merchant_id'];
-
+            // Cek apakah merchant sudah punya produk ini
             $existsInMerchant = DB::table('merchant_product')
-                ->where('merchant_id', $merchantId)
+                ->where('merchant_id', $merchant->id)
                 ->where('product_id', $productId)
                 ->exists();
 
             if ($existsInMerchant) {
                 DB::table('merchant_product')
-                    ->where('merchant_id', $merchantId)
+                    ->where('merchant_id', $merchant->id)
                     ->where('product_id', $productId)
                     ->increment('stock', $amount);
             } else {
-                DB::table('merchant_product')->insert([
-                    'merchant_id' => $merchantId,
-                    'product_id'  => $productId,
-                    'stock'       => $amount,
-                    'created_at' => now(),
-                    'updated_at' => now(),
+                $this->merchantRepository->attachProducts($merchant, [
+                    $productId => ['stock' => $amount]
                 ]);
             }
 
-            $currentMerchantStock = DB::table('merchant_product')
-                ->where('merchant_id', $merchantId)
-                ->where('product_id', $productId)
-                ->value('stock');
-
-            $this->stockMutationService->recordStockIn([
+            // 4. Catat Mutasi Keluar (Gudang) & Masuk (Merchant)
+            // Logika mutasi di sini disederhanakan untuk pencatatan history
+            $this->stockMutationService->recordMutation([
                 'product_id' => $productId,
-                'merchant_id' => $merchantId,
+                'warehouse_id' => $warehouseId,
+                'type' => 'out',
                 'amount' => $amount,
-                'current_stock' => $currentMerchantStock,
-                'note' => "Terima dari Warehouse (Assign)",
+                'note' => "Transfer ke Merchant: {$merchant->name}",
                 'created_by' => $userId
+            ]);
+
+            $this->stockMutationService->recordMutation([
+                'product_id' => $productId,
+                'merchant_id' => $merchant->id,
+                'type' => 'in',
+                'amount' => $amount,
+                'note' => "Transfer masuk dari Warehouse",
+                'created_by' => $userId
+            ]);
+
+            // [Audit Log]
+            Log::info("Stock Transfer: Warehouse -> Merchant", [
+                'warehouse_id' => $warehouseId,
+                'merchant_id' => $merchant->id,
+                'product_id' => $productId,
+                'amount' => $amount,
+                'user_id' => $userId
             ]);
 
             return [
                 'status' => 'success',
                 'moved_amount' => $amount,
-                'warehouse_remaining' => $currentWarehouseStock,
-                'merchant_stock' => $currentMerchantStock
             ];
         });
     }
@@ -128,6 +130,10 @@ class MerchantProductService
                 'product_id' => ['Produk tidak ditemukan di merchant ini']
             ]);
         }
+
+        $history = $this->stockMutationService->getProductHistory($productId, [
+            'merchant_id' => $merchantId
+        ]);
 
         return [
             'merchant' => [

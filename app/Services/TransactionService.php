@@ -6,6 +6,7 @@ use App\Enum\TransactionEnum;
 use App\Models\Transaction;
 use App\Repositories\MerchantRepository;
 use App\Repositories\TransactionRepository;
+use Exception;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -59,6 +60,7 @@ class TransactionService
         return DB::transaction(function () use ($data) {
             // Validasi merchant
             $merchant = $this->merchantRepository->getMerchantById($data['merchant_id'], ['*']);
+            if (!$merchant->is_active) throw new Exception("Merchant sedang tutup.");
 
             $productIds = array_column($data['products'], 'product_id');
 
@@ -155,14 +157,24 @@ class TransactionService
     public function updateStatus(string $transactionId, string $status): Transaction
     {
         return DB::transaction(function () use ($transactionId, $status) {
-            $transaction = $this->transactionRepository->getTransactionById($transactionId);
+            $transaction = Transaction::lockForUpdate()->find($transactionId);
 
-            $statusEnum = TransactionEnum::from($status);
-            if ($statusEnum === TransactionEnum::CANCELLED && $transaction->status === TransactionEnum::PENDING) {
-                $this->restoreStock($transaction);
+            if (!$transaction) {
+                throw new Exception("Transaksi tidak ditemukan.");
             }
 
-            return $this->transactionRepository->updateStatus($transaction, $statusEnum);
+            $targetStatus = TransactionEnum::from($status);
+            $currentStatus = $transaction->status;
+
+            // [New Rule] Validasi Perubahan Status (State Machine)
+            $this->validateStatusTransition($currentStatus, $targetStatus);
+
+            // [Compensating] Logika Kompensasi saat Cancel
+            if ($targetStatus === TransactionEnum::CANCELLED) {
+                $this->handleCancellationCompensation($transaction);
+            }
+
+            return $this->transactionRepository->updateStatus($transaction, $targetStatus);
         });
     }
 
@@ -180,7 +192,12 @@ class TransactionService
     public function markAsPaid(string $transactionId, array $paymentData = []): Transaction
     {
         return DB::transaction(function () use ($transactionId, $paymentData) {
-            $transaction = $this->transactionRepository->getTransactionById($transactionId);
+            $transaction = Transaction::lockForUpdate()->find($transactionId);
+
+            // [New Rule] Tidak bisa bayar jika sudah cancel atau paid
+            if ($transaction->status !== TransactionEnum::PENDING) {
+                throw new Exception("Transaksi tidak dapat dibayar karena status saat ini: {$transaction->status->value}");
+            }
 
             $updateData = [
                 'status' => TransactionEnum::PAID,
@@ -190,13 +207,56 @@ class TransactionService
             if (!empty($paymentData['payment_method'])) {
                 $updateData['payment_method'] = $paymentData['payment_method'];
             }
-
             if (!empty($paymentData['payment_reference'])) {
                 $updateData['payment_reference'] = $paymentData['payment_reference'];
             }
 
             return $this->transactionRepository->updateTransaction($transaction, $updateData);
         });
+    }
+
+    /**
+     * [New Rule] State Transition Validation
+     * Mencegah perubahan status yang tidak logis
+     */
+    private function validateStatusTransition(TransactionEnum $current, TransactionEnum $target): void
+    {
+        // 1. Jika sudah Final (CANCELLED/PAID), tidak boleh berubah lagi (Immutable terminal state)
+        //    Kecuali ada fitur 'Refund' (PAID -> CANCELLED) yang kita izinkan di bawah.
+        if ($current === TransactionEnum::CANCELLED) {
+            throw new Exception("Transaksi yang sudah dibatalkan tidak dapat diubah statusnya.");
+        }
+
+        // 2. Cegah PENDING -> PENDING (Redundan)
+        if ($current === $target) {
+            return;
+        }
+
+        // 3. Aturan Khusus Transition
+        // PENDING -> PAID (OK)
+        // PENDING -> CANCELLED (OK)
+        // PAID -> CANCELLED (OK - Trigger Refund/Restock)
+        // PAID -> PENDING (TIDAK BOLEH - Masa udah bayar jadi ngutang lagi?)
+
+        if ($current === TransactionEnum::PAID && $target === TransactionEnum::PENDING) {
+            throw new Exception("Transaksi yang sudah dibayar tidak dapat dikembalikan ke status Pending.");
+        }
+    }
+
+    /**
+     * [Compensating] Handle logic kompensasi (Reverse Transaction)
+     * Mengembalikan stok & potensi refund
+     */
+    private function handleCancellationCompensation(Transaction $transaction): void
+    {
+        // 1. Kembalikan Stok (Compensating Stock)
+        $this->restoreStock($transaction);
+
+        // 2. [Future Improvement] Jika status sebelumnya PAID, trigger Refund
+        if ($transaction->status === TransactionEnum::PAID) {
+            // $this->paymentGateway->refund($transaction);
+            // Log::info("Refund initiated for Transaction {$transaction->invoice_code}");
+        }
     }
 
     /**
@@ -221,8 +281,6 @@ class TransactionService
                 'merchant_id' => $merchantId,
                 'type' => 'in',
                 'amount' => $qty,
-                // Note: current_stock di sini mungkin perlu query ulang kalau mau akurat banget, 
-                // tapi untuk log history biasanya acceptable pakai data estimasi atau query ulang setelah increment.
                 'current_stock' => DB::table('merchant_product')
                     ->where('merchant_id', $merchantId)
                     ->where('product_id', $productId)
