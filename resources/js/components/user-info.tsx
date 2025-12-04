@@ -5,6 +5,12 @@ import { type User } from '@/types';
 export function UserInfo({ user, showEmail = false }: { user: User; showEmail?: boolean }) {
   const getInitials = useInitials();
 
+  const userRole = user.roles?.[0]?.name;
+
+  const formattedRole = userRole
+    ? userRole.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+    : 'Guest';
+
   return (
     <>
       <Avatar className='h-8 w-8 overflow-hidden rounded-full'>
@@ -18,7 +24,7 @@ export function UserInfo({ user, showEmail = false }: { user: User; showEmail?: 
         {showEmail && (
           <div className='grid gap-0.5'>
             <span className='truncate text-xs text-muted-foreground'>{user.email}</span>
-            <span className='truncate text-xs text-muted-foreground'>{user.updated_at}</span>
+            <span className='truncate text-xs text-muted-foreground'>{formattedRole}</span>
           </div>
         )}
       </div>

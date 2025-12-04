@@ -35,8 +35,12 @@ export interface User {
   name: string;
   email: string;
   avatar?: string;
+  phone?: string;
   email_verified_at: string | null;
   two_factor_enabled?: boolean;
+  roles?: Role[];
+  role_label: string;
+  current_teams?: string | { id: string | number; name: string };
   created_at: string;
   updated_at: string;
   [key: string]: unknown; // This allows for additional properties...

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enum\RolesEnum;
 use App\Models\Role;
 use App\Models\User;
 use App\Repositories\UserRepository;
@@ -33,7 +34,7 @@ class UserService
                 'phone' => $data['phone'],
                 'password' => Hash::make($data['password']),
             ]);
-            $this->userRepository->assignRole($user, 'customer');
+            $this->userRepository->assignRole($user, RolesEnum::GUEST_USER->value);
 
             // [Audit Log]
             Log::info("New User Registered: {$user->email}", ['user_id' => $user->id, 'role' => 'customer']);
@@ -52,7 +53,7 @@ class UserService
                 'phone' => $data['phone'],
                 'password' => Hash::make($data['password']),
             ]);
-            $role = $data['role'] ?? 'merchant_owner';
+            $role = $data['role'] ?? RolesEnum::MERCHANT_OWNER->value;
             $this->userRepository->assignRole($user, $role);
 
             // Create Team/Store
