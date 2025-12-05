@@ -23,11 +23,34 @@ export interface NavItem {
 }
 
 export interface SharedData {
-  name: string;
-  quote: { message: string; author: string };
   auth: Auth;
   sidebarOpen: boolean;
+
+  flash: {
+    success?: string;
+    error?: string;
+    warning?: string;
+    info?: string;
+  };
+  errors: Record<string, string>;
   [key: string]: unknown;
+}
+
+export interface Role {
+  id: string;
+  name: string;
+  guard_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  keeper_id: string;
+  slug?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface User {
@@ -39,9 +62,20 @@ export interface User {
   email_verified_at: string | null;
   two_factor_enabled?: boolean;
   roles?: Role[];
-  role_label: string;
-  current_teams?: string | { id: string | number; name: string };
   created_at: string;
   updated_at: string;
+
+  roles?: Role[];
+  role_label?: string; // Optional: untuk backward compatibility
+  teams?: Team[];
+  current_teams?: Team | string | null;
+
+  // Pivot data (jika ada)
+  pivot?: {
+    team_id: string;
+    user_id: string;
+    created_at: string;
+    updated_at: string;
+  };
   [key: string]: unknown; // This allows for additional properties...
 }
