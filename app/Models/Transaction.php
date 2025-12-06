@@ -58,6 +58,10 @@ class Transaction extends Model
         return $this->belongsTo(User::class, 'cashier_id');
     }
 
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'customer_id');
+    }
     /**
      * Relasi ke transaction Produk yang dibeli
      * Mengambil data dari tabel pivot 'transaction_product'

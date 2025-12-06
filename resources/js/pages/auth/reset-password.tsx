@@ -8,10 +8,10 @@ import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import AuthLayout from '@/layouts/auth-layout';
 
-type ResetPasswordProps = {
+interface ResetPasswordProps {
   token: string;
   email: string;
-};
+}
 
 export default function ResetPassword({ token, email }: ResetPasswordProps) {
   return (

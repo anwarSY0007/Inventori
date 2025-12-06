@@ -36,6 +36,11 @@ return new class extends Migration
 
             $table->foreignUuid('merchant_id')->constrained()->cascadeOnDelete();
             $table->foreignUuid('cashier_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignUuid('customer_id')
+                ->nullable()
+                ->index()
+                ->constrained('users')
+                ->nullOnDelete();
 
             $table->index('invoice_code');
             $table->index(['merchant_id', 'status', 'created_at']);

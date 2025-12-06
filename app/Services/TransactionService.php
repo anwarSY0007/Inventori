@@ -321,4 +321,9 @@ class TransactionService
             'cancelled_transactions' => $transactions->where('status', TransactionEnum::CANCELLED)->count(),
         ];
     }
+
+    public function getTotalRevenue(): float
+    {
+        return Transaction::where('status', TransactionEnum::PAID)->sum('grand_total');
+    }
 }

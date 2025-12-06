@@ -2,6 +2,7 @@ import { wayfinder } from '@laravel/vite-plugin-wayfinder';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import laravel from 'laravel-vite-plugin';
+import { resolve } from 'path';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
@@ -11,6 +12,7 @@ export default defineConfig({
     },
     hmr: {
       overlay: false,
+      host: 'localhost',
     },
   },
   css: {
@@ -31,6 +33,17 @@ export default defineConfig({
       formVariants: true,
     }),
   ],
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, 'resources/js'),
+      '@/components': resolve(__dirname, 'resources/js/components'),
+      '@/pages': resolve(__dirname, 'resources/js/pages'),
+      '@/routes': resolve(__dirname, 'resources/js/routes'),
+      '@/lib': resolve(__dirname, 'resources/js/lib'),
+      '@/hooks': resolve(__dirname, 'resources/js/hooks'),
+      '@/types': resolve(__dirname, 'resources/js/types'),
+    },
+  },
   esbuild: {
     jsx: 'automatic',
     legalComments: 'none',

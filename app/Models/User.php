@@ -22,7 +22,6 @@ use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, TwoFactorAuthenticatable, UUID, HasSlug, HasRoles, HasApiTokens;
 
     /**
@@ -96,7 +95,7 @@ class User extends Authenticatable
         return $this->belongsToMany(Team::class, 'teams_users')->withTimestamps();
     }
 
-    public function currentTeams(): BelongsTo
+    public function currentTeam(): BelongsTo
     {
         return $this->belongsTo(Team::class, 'current_team_id');
     }

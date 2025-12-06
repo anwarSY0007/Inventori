@@ -6,7 +6,6 @@ use App\Enum\PermissionEnum;
 use App\Enum\RolesEnum;
 use App\Models\Permission;
 use App\Models\Role;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -17,51 +16,31 @@ class RolePermissionSeeder extends Seeder
      */
     public function run(): void
     {
-        app()[PermissionRegistrar::class]->forgetCachedPermissions();
+        // 1. Reset cache permission Spatie agar perubahan terdeteksi
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
+        // 2. Buat semua Permission yang terdaftar di Enum
         foreach (PermissionEnum::cases() as $permission) {
-            Permission::create(['name' => $permission->value]);
+            Permission::firstOrCreate(['name' => $permission->value]);
         }
-        $superAdmin = Role::firstOrCreate(['name' => RolesEnum::SUPER_ADMIN->value]);
-        $superAdmin->givePermissionTo(Permission::all());
 
-        $merchantOwner = Role::firstOrCreate(['name' => RolesEnum::MERCHANT_OWNER->value]);
-        $merchantOwner->givePermissionTo([
-            PermissionEnum::MANAGE_OWN_MERCHANT->value,      // Kelola setting toko
-            PermissionEnum::MANAGE_MERCHANT_PRODUCTS->value, // Kelola produk
-            PermissionEnum::VIEW_MERCHANT_REPORTS->value,    // Lihat laporan
-            PermissionEnum::MANAGE_WAREHOUSES->value,        // Kelola gudang
-            PermissionEnum::MANAGE_WAREHOUSE_STOCK->value,   // Kelola stok
-            PermissionEnum::CREATE_TRANSACTION->value,       // Bisa transaksi juga
-            PermissionEnum::VOID_TRANSACTION->value,         // Void transaksi
-        ]);
+        // 3. Buat Role & Assign Permission secara otomatis dari RolesEnum
+        foreach (RolesEnum::cases() as $roleEnum) {
+            // Buat atau ambil Role berdasarkan value Enum (contoh: 'merchant_owner')
+            $role = Role::firstOrCreate(['name' => $roleEnum->value]);
 
-        $adminMerchant = Role::firstOrCreate(['name' => RolesEnum::ADMIN->value]);
-        $adminMerchant->givePermissionTo([
-            PermissionEnum::MANAGE_MERCHANT_PRODUCTS->value, // Input produk
-            PermissionEnum::VIEW_MERCHANT_REPORTS->value,    // Rekap laporan
-            PermissionEnum::MANAGE_WAREHOUSE_STOCK->value,   // Cek stok
-        ]);
+            // Ambil daftar permission dari method permissions() di RolesEnum
+            $assignedPermissions = $roleEnum->permissions();
 
-        $cashier = Role::firstOrCreate(['name' => RolesEnum::CASHIER->value]);
-        $cashier->givePermissionTo([
-            PermissionEnum::CREATE_TRANSACTION->value,       // Kasir
-            PermissionEnum::VIEW_CATALOG->value,             // Lihat barang
-            PermissionEnum::VIEW_PRODUCT_DETAIL->value,
-        ]);
+            // Ubah array Enum menjadi array string value
+            // Contoh: [PermissionEnum::MANAGE_OWN_TEAM] -> ['manage own team']
+            $permissionValues = array_map(
+                fn($p) => $p->value,
+                $assignedPermissions
+            );
 
-        $warehouseStaff = Role::firstOrCreate(['name' => RolesEnum::WAREHOUSE_STAFF->value]);
-        $warehouseStaff->givePermissionTo([
-            PermissionEnum::MANAGE_WAREHOUSES->value,        // Kelola data gudang
-            PermissionEnum::MANAGE_WAREHOUSE_STOCK->value,   // Opname stok
-        ]);
-
-        $guest = Role::firstOrCreate(['name' => RolesEnum::GUEST_USER->value]);
-        $guest->givePermissionTo([
-            PermissionEnum::VIEW_CATALOG->value,
-            PermissionEnum::VIEW_PRODUCT_DETAIL->value,
-            PermissionEnum::PLACE_ORDER->value,
-            PermissionEnum::MANAGE_MY_PROFILE->value
-        ]);
+            // Sinkronisasi permission ke role (hapus yang lama, pasang yang baru sesuai Enum)
+            $role->syncPermissions($permissionValues);
+        }
     }
 }

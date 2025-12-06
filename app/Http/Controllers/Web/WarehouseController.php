@@ -23,8 +23,7 @@ class WarehouseController extends Controller
      */
     public function index(Request $request): Response
     {
-        $filters = $request->only(['search']);
-
+        $filters = $request->only(['search']) ?? [];
         $warehouses = $this->warehouseService->getAll();
 
         return Inertia::render('Admin/Warehouses/Index', [
@@ -51,11 +50,11 @@ class WarehouseController extends Controller
 
             return redirect()
                 ->route('admin.warehouses.index')
-                ->with('success', 'Warehouse berhasil ditambahkan');
+                ->with('success', 'Warehouse created successfully');
         } catch (\Exception $e) {
             return back()
                 ->withInput()
-                ->with('error', 'Gagal menambahkan warehouse: ' . $e->getMessage());
+                ->with('error', 'Failed to create warehouse: ' . $e->getMessage());
         }
     }
 
@@ -93,11 +92,11 @@ class WarehouseController extends Controller
 
             return redirect()
                 ->route('admin.warehouses.index')
-                ->with('success', 'Warehouse berhasil diperbarui');
+                ->with('success', 'Warehouse updated successfully');
         } catch (\Exception $e) {
             return back()
                 ->withInput()
-                ->with('error', 'Gagal memperbarui warehouse: ' . $e->getMessage());
+                ->with('error', 'Failed to update warehouse: ' . $e->getMessage());
         }
     }
 
@@ -111,10 +110,9 @@ class WarehouseController extends Controller
 
             return redirect()
                 ->route('admin.warehouses.index')
-                ->with('success', 'Warehouse berhasil dihapus');
+                ->with('success', 'Warehouse deleted successfully');
         } catch (\Exception $e) {
-            return back()
-                ->with('error', 'Gagal menghapus warehouse: ' . $e->getMessage());
+            return back()->with('error', 'Failed to delete warehouse: ' . $e->getMessage());
         }
     }
 
@@ -126,25 +124,7 @@ class WarehouseController extends Controller
         $warehouse = $this->warehouseService->getBySlug($slug, ['*']);
 
         return Inertia::render('Admin/Warehouses/Products', [
-            'warehouse' => [
-                'id' => $warehouse->id,
-                'slug' => $warehouse->slug,
-                'name' => $warehouse->name,
-                'products' => $warehouse->products->map(function ($product) {
-                    return [
-                        'id' => $product->id,
-                        'slug' => $product->slug,
-                        'name' => $product->name,
-                        'thumbnail' => $product->thumbnail,
-                        'price' => $product->price,
-                        'stock' => $product->pivot->stock,
-                        'category' => [
-                            'id' => $product->category?->id,
-                            'name' => $product->category?->name,
-                        ],
-                    ];
-                }),
-            ],
+            'warehouse' => new WarehouseResource($warehouse),
         ]);
     }
 

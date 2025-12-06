@@ -25,8 +25,7 @@ class MerchantController extends Controller
      */
     public function index(Request $request): Response
     {
-        $filters = $request->only(['search']);
-
+        $filters = $request->only(['search']) ?? [];
         $merchants = $this->merchantService->getAll();
 
         return Inertia::render('Admin/Merchants/Index', [
@@ -40,16 +39,8 @@ class MerchantController extends Controller
      */
     public function create(): Response
     {
-        // Get users with merchant_owner role for keeper selection
-        $merchantOwners = $this->userService->getAllUsers(['role' => 'merchant_owner'])
-            ->map(fn($user) => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-            ]);
-
         return Inertia::render('Admin/Merchants/Create', [
-            'merchantOwners' => $merchantOwners,
+            'merchantOwners' => $this->getMerchantOwnerOptions(),
         ]);
     }
 
@@ -63,11 +54,11 @@ class MerchantController extends Controller
 
             return redirect()
                 ->route('admin.merchants.index')
-                ->with('success', 'Merchant berhasil ditambahkan');
+                ->with('success', 'Merchant created successfully');
         } catch (\Exception $e) {
             return back()
                 ->withInput()
-                ->with('error', 'Gagal menambahkan merchant: ' . $e->getMessage());
+                ->with('error', 'Failed to create merchant: ' . $e->getMessage());
         }
     }
 
@@ -90,16 +81,9 @@ class MerchantController extends Controller
     {
         $merchant = $this->merchantService->getBySlug($slug, ['*']);
 
-        $merchantOwners = $this->userService->getAllUsers(['role' => 'merchant_owner'])
-            ->map(fn($user) => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-            ]);
-
         return Inertia::render('Admin/Merchants/Edit', [
             'merchant' => new MerchantResource($merchant),
-            'merchantOwners' => $merchantOwners,
+            'merchantOwners' => $this->getMerchantOwnerOptions(),
         ]);
     }
 
@@ -113,11 +97,11 @@ class MerchantController extends Controller
 
             return redirect()
                 ->route('admin.merchants.index')
-                ->with('success', 'Merchant berhasil diperbarui');
+                ->with('success', 'Merchant updated successfully');
         } catch (\Exception $e) {
             return back()
                 ->withInput()
-                ->with('error', 'Gagal memperbarui merchant: ' . $e->getMessage());
+                ->with('error', 'Failed to update merchant: ' . $e->getMessage());
         }
     }
 
@@ -131,10 +115,9 @@ class MerchantController extends Controller
 
             return redirect()
                 ->route('admin.merchants.index')
-                ->with('success', 'Merchant berhasil dihapus');
+                ->with('success', 'Merchant deleted successfully');
         } catch (\Exception $e) {
-            return back()
-                ->with('error', 'Gagal menghapus merchant: ' . $e->getMessage());
+            return back()->with('error', 'Failed to delete merchant: ' . $e->getMessage());
         }
     }
 
@@ -146,25 +129,21 @@ class MerchantController extends Controller
         $merchant = $this->merchantService->getBySlug($slug, ['*']);
 
         return Inertia::render('Admin/Merchants/Products', [
-            'merchant' => [
-                'id' => $merchant->id,
-                'slug' => $merchant->slug,
-                'name' => $merchant->name,
-                'products' => $merchant->products->map(function ($product) {
-                    return [
-                        'id' => $product->id,
-                        'slug' => $product->slug,
-                        'name' => $product->name,
-                        'thumbnail' => $product->thumbnail,
-                        'price' => $product->price,
-                        'stock' => $product->pivot->stock,
-                        'category' => [
-                            'id' => $product->category?->id,
-                            'name' => $product->category?->name,
-                        ],
-                    ];
-                }),
-            ],
+            'merchant' => new MerchantResource($merchant),
         ]);
+    }
+
+    /**
+     * Get merchant owners for dropdown (private helper)
+     */
+    private function getMerchantOwnerOptions(): array
+    {
+        return $this->userService
+            ->getAllUsers(['role' => 'merchant_owner'])
+            ->map(fn($user) => [
+                'value' => $user->id,
+                'label' => "{$user->name} ({$user->email})",
+            ])
+            ->toArray();
     }
 }

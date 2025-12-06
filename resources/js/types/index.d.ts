@@ -19,7 +19,20 @@ export interface NavItem {
   title: string;
   href: NonNullable<InertiaLinkProps['href']>;
   icon?: LucideIcon | null;
+  roles?: string[];
   isActive?: boolean;
+}
+
+export type PageProps<T extends Record<string, unknown> = Record<string, unknown>> = T & SharedData;
+
+export interface AppLogoProps {
+  mode?: 'text' | 'image' | 'svg';
+  src?: string; // URL gambar (jika mode='image')
+  text?: string; // Teks inisial (jika mode='text')
+  content?: ReactNode; // Komponen SVG (jika mode='svg')
+  appName?: string; // Nama Aplikasi
+  className?: string;
+  [key: string]: unknown;
 }
 
 export interface SharedData {
@@ -51,6 +64,35 @@ export interface Team {
   slug?: string;
   created_at: string;
   updated_at: string;
+}
+
+// Customer Type
+export interface Customer {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  avatar?: string;
+  total_orders?: number;
+  total_spent?: number;
+  last_order_at?: string;
+  registered_at: string;
+  joined_team_at?: string;
+}
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  avatar?: string;
+  role: string;
+  role_label: string;
+  current_teams?: {
+    name: string;
+  };
+  created_at: string;
+  joined_at: string;
 }
 
 export interface User {

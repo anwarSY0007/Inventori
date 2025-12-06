@@ -12,6 +12,8 @@ enum PermissionEnum: string
 
     case MANAGE_MERCHANTS = 'manage merchants'; // Super admin
     case MANAGE_OWN_MERCHANT = 'manage own merchant'; // Merchant owner
+    case MANAGE_MERCHANT_TEAMS = 'manage team merchant';
+    case MANAGE_OWN_TEAM = 'manage own team';
     case MANAGE_MERCHANT_PRODUCTS = 'manage merchant products';
     case VIEW_MERCHANT_REPORTS = 'view merchant reports';
 
@@ -28,18 +30,27 @@ enum PermissionEnum: string
     public function label(): string
     {
         return match ($this) {
+            // Super Admin
             self::MANAGE_CATEGORIES => 'Kelola Kategori',
             self::MANAGE_GLOBAL_PRODUCTS => 'Kelola Produk Global',
-            self::MANAGE_WAREHOUSES => 'Kelola Gudang',
-            self::MANAGE_WAREHOUSE_STOCK => 'Kelola Stok Gudang',
             self::MANAGE_MERCHANTS => 'Kelola Semua Merchant',
+            self::MANAGE_MERCHANT_TEAMS => 'Kelola Tim Merchant',
+
+            // Merchant
             self::MANAGE_OWN_MERCHANT => 'Kelola Merchant Sendiri',
+            self::MANAGE_OWN_TEAM => 'Kelola Tim Sendiri',        // Label untuk permission baru
             self::MANAGE_MERCHANT_PRODUCTS => 'Kelola Produk Merchant',
             self::VIEW_MERCHANT_REPORTS => 'Lihat Laporan Merchant',
+
+            // Warehouse
+            self::MANAGE_WAREHOUSES => 'Kelola Gudang',
+            self::MANAGE_WAREHOUSE_STOCK => 'Kelola Stok Gudang',
+
+            // Transaction
             self::CREATE_TRANSACTION => 'Buat Transaksi (Kasir)',
             self::VOID_TRANSACTION => 'Batalkan Transaksi',
 
-            // Label untuk Guest & Customer
+            // --- BAGIAN INI YANG TADI HILANG ---
             self::VIEW_CATALOG => 'Lihat Katalog Produk',
             self::VIEW_PRODUCT_DETAIL => 'Lihat Detail Produk',
             self::PLACE_ORDER => 'Melakukan Pemesanan (Online)',

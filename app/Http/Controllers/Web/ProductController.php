@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Product\ProductCreateRequest;
 use App\Http\Requests\Product\ProductUpdateRequest;
+use App\Http\Resources\CategoryResource;
 use App\Http\Resources\ProductResource;
 use App\Services\CategoryService;
 use App\Services\ProductService;
@@ -25,25 +26,21 @@ class ProductController extends Controller
      */
     public function index(Request $request): Response
     {
-        $filters = $request->only(['search', 'category_id', 'is_popular']);
-
-        if (!empty($filters['search'])) {
-            $filters['search'] = $filters['search'];
-        }
-
+        $filters = $request->only(['search', 'category_id', 'is_popular']) ?? [];
         $products = $this->productService->getAll($filters);
 
         return Inertia::render('Admin/Products/Index', [
-            'products' => ProductResource::collection($products)->additional([
-                'meta' => [
-                    'current_page' => $products->currentPage(),
-                    'last_page' => $products->lastPage(),
-                    'per_page' => $products->perPage(),
-                    'total' => $products->total(),
-                ]
-            ]),
+            'products' => ProductResource::collection($products),
             'filters' => $filters,
-            'categories' => $this->categoryService->getAll(['id', 'name']),
+            'categories' => CategoryResource::collection(
+                $this->categoryService->getAll(['id', 'name', 'slug'])
+            ),
+            'meta' => [
+                'current_page' => $products->currentPage(),
+                'last_page' => $products->lastPage(),
+                'per_page' => $products->perPage(),
+                'total' => $products->total(),
+            ],
         ]);
     }
 
@@ -52,10 +49,10 @@ class ProductController extends Controller
      */
     public function create(): Response
     {
-        $categories = $this->categoryService->getAll(['id', 'name', 'slug']);
-
         return Inertia::render('Admin/Products/Create', [
-            'categories' => $categories,
+            'categories' => CategoryResource::collection(
+                $this->categoryService->getAll(['id', 'name', 'slug'])
+            ),
         ]);
     }
 
@@ -69,11 +66,11 @@ class ProductController extends Controller
 
             return redirect()
                 ->route('admin.products.index')
-                ->with('success', 'Produk berhasil ditambahkan');
+                ->with('success', 'Product created successfully');
         } catch (\Exception $e) {
             return back()
                 ->withInput()
-                ->with('error', 'Gagal menambahkan produk: ' . $e->getMessage());
+                ->with('error', 'Failed to create product: ' . $e->getMessage());
         }
     }
 
@@ -95,11 +92,12 @@ class ProductController extends Controller
     public function edit(string $slug): Response
     {
         $product = $this->productService->getBySlug($slug, ['*']);
-        $categories = $this->categoryService->getAll(['id', 'name', 'slug']);
 
         return Inertia::render('Admin/Products/Edit', [
             'product' => new ProductResource($product),
-            'categories' => $categories,
+            'categories' => CategoryResource::collection(
+                $this->categoryService->getAll(['id', 'name', 'slug'])
+            ),
         ]);
     }
 
@@ -113,11 +111,11 @@ class ProductController extends Controller
 
             return redirect()
                 ->route('admin.products.index')
-                ->with('success', 'Produk berhasil diperbarui');
+                ->with('success', 'Product updated successfully');
         } catch (\Exception $e) {
             return back()
                 ->withInput()
-                ->with('error', 'Gagal memperbarui produk: ' . $e->getMessage());
+                ->with('error', 'Failed to update product: ' . $e->getMessage());
         }
     }
 
@@ -131,10 +129,9 @@ class ProductController extends Controller
 
             return redirect()
                 ->route('admin.products.index')
-                ->with('success', 'Produk berhasil dihapus');
+                ->with('success', 'Product deleted successfully');
         } catch (\Exception $e) {
-            return back()
-                ->with('error', 'Gagal menghapus produk: ' . $e->getMessage());
+            return back()->with('error', 'Failed to delete product: ' . $e->getMessage());
         }
     }
 }

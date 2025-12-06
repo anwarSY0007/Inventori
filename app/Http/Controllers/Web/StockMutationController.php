@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\MerchantResource;
+use App\Http\Resources\ProductResource;
 use App\Http\Resources\StockLevelResource;
 use App\Http\Resources\StockMutationResource;
+use App\Http\Resources\WarehouseResource;
 use App\Services\MerchantService;
 use App\Services\ProductService;
 use App\Services\StockMutationService;
@@ -34,62 +37,61 @@ class StockMutationController extends Controller
             'type',
             'start_date',
             'end_date'
-        ]);
+        ]) ?? [];
 
         $mutations = $this->stockMutationService->getAll($filters);
 
         return Inertia::render('Admin/StockMutations/Index', [
             'mutations' => StockMutationResource::collection($mutations),
             'filters' => $filters,
-            'products' => $this->productService->getAll([], ['id', 'name']),
-            'warehouses' => $this->warehouseService->getAll(['id', 'name']),
-            'merchants' => $this->merchantService->getAll(['id', 'name']),
+            'products' => ProductResource::collection(
+                $this->productService->getAll([], ['id', 'name', 'slug'])
+            ),
+            'warehouses' => WarehouseResource::collection(
+                $this->warehouseService->getAll(['id', 'name', 'slug'])
+            ),
+            'merchants' => MerchantResource::collection(
+                $this->merchantService->getAll(['id', 'name', 'slug'])
+            ),
         ]);
     }
 
     /**
      * Display product stock history
      */
-    public function productHistory(Request $request, string $productId): Response
+    public function productHistory(Request $request, string $productSlug): Response
     {
-        $filters = $request->only(['warehouse_id', 'merchant_id', 'start_date', 'end_date']);
+        $filters = $request->only(['warehouse_id', 'merchant_id', 'start_date', 'end_date']) ?? [];
 
-        $history = $this->stockMutationService->getProductHistory($productId, $filters);
-
-        $product = $this->productService->getBySlug($productId, ['id', 'name', 'slug', 'thumbnail']);
+        $product = $this->productService->getBySlug($productSlug, ['id', 'name', 'slug', 'thumbnail']);
+        $history = $this->stockMutationService->getProductHistory($product->id, $filters);
 
         return Inertia::render('Admin/StockMutations/ProductHistory', [
-            'product' => [
-                'id' => $product->id,
-                'name' => $product->name,
-                'slug' => $product->slug,
-                'thumbnail' => $product->thumbnail,
-            ],
+            'product' => new ProductResource($product),
             'mutations' => StockMutationResource::collection($history['mutations']),
             'summary' => $history['summary'],
             'filters' => $filters,
-            'warehouses' => $this->warehouseService->getAll(['id', 'name']),
-            'merchants' => $this->merchantService->getAll(['id', 'name']),
+            'warehouses' => WarehouseResource::collection(
+                $this->warehouseService->getAll(['id', 'name', 'slug'])
+            ),
+            'merchants' => MerchantResource::collection(
+                $this->merchantService->getAll(['id', 'name', 'slug'])
+            ),
         ]);
     }
 
     /**
      * Display warehouse stock report
      */
-    public function warehouseReport(Request $request, string $warehouseId): Response
+    public function warehouseReport(Request $request, string $warehouseSlug): Response
     {
-        $filters = $request->only(['start_date', 'end_date']);
+        $filters = $request->only(['start_date', 'end_date']) ?? [];
 
-        $report = $this->stockMutationService->getWarehouseReport($warehouseId, $filters);
-
-        $warehouse = $this->warehouseService->getById($warehouseId, ['id', 'name', 'slug']);
+        $warehouse = $this->warehouseService->getBySlug($warehouseSlug, ['id', 'name', 'slug']);
+        $report = $this->stockMutationService->getWarehouseReport($warehouse->id, $filters);
 
         return Inertia::render('Admin/Reports/WarehouseStock', [
-            'warehouse' => [
-                'id' => $warehouse->id,
-                'name' => $warehouse->name,
-                'slug' => $warehouse->slug,
-            ],
+            'warehouse' => new WarehouseResource($warehouse),
             'report' => $report,
             'filters' => $filters,
         ]);
@@ -98,20 +100,15 @@ class StockMutationController extends Controller
     /**
      * Display merchant stock report
      */
-    public function merchantReport(Request $request, string $merchantId): Response
+    public function merchantReport(Request $request, string $merchantSlug): Response
     {
-        $filters = $request->only(['start_date', 'end_date']);
+        $filters = $request->only(['start_date', 'end_date']) ?? [];
 
-        $report = $this->stockMutationService->getMerchantReport($merchantId, $filters);
-
-        $merchant = $this->merchantService->getById($merchantId, ['id', 'name', 'slug']);
+        $merchant = $this->merchantService->getBySlug($merchantSlug, ['id', 'name', 'slug']);
+        $report = $this->stockMutationService->getMerchantReport($merchant->id, $filters);
 
         return Inertia::render('Admin/Reports/MerchantStock', [
-            'merchant' => [
-                'id' => $merchant->id,
-                'name' => $merchant->name,
-                'slug' => $merchant->slug,
-            ],
+            'merchant' => new MerchantResource($merchant),
             'report' => $report,
             'filters' => $filters,
         ]);
@@ -122,15 +119,18 @@ class StockMutationController extends Controller
      */
     public function stockLevels(Request $request): Response
     {
-        $filters = $request->only(['product_id', 'warehouse_id', 'merchant_id']);
-
+        $filters = $request->only(['product_id', 'warehouse_id', 'merchant_id']) ?? [];
         $products = $this->productService->getAll($filters);
 
         return Inertia::render('Admin/Reports/StockLevels', [
             'products' => StockLevelResource::collection($products),
             'filters' => $filters,
-            'warehouses' => $this->warehouseService->getAll(['id', 'name']),
-            'merchants' => $this->merchantService->getAll(['id', 'name']),
+            'warehouses' => WarehouseResource::collection(
+                $this->warehouseService->getAll(['id', 'name', 'slug'])
+            ),
+            'merchants' => MerchantResource::collection(
+                $this->merchantService->getAll(['id', 'name', 'slug'])
+            ),
         ]);
     }
 }

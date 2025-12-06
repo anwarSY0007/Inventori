@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Enum\TransactionEnum;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Transaction\TransactionCreateRequest;
+use App\Http\Resources\MerchantResource;
 use App\Http\Resources\TransactionResource;
 use App\Services\MerchantService;
 use App\Services\TransactionService;
@@ -26,18 +27,16 @@ class TransactionController extends Controller
      */
     public function index(Request $request): Response
     {
-        $filters = $request->only(['merchant_id', 'status', 'start_date', 'end_date']);
-
+        $filters = $request->only(['merchant_id', 'status', 'start_date', 'end_date']) ?? [];
         $transactions = $this->transactionService->getAll($filters);
 
         return Inertia::render('Admin/Transactions/Index', [
             'transactions' => TransactionResource::collection($transactions),
             'filters' => $filters,
-            'merchants' => $this->merchantService->getAll(['id', 'name']),
-            'statuses' => collect(TransactionEnum::cases())->map(fn($status) => [
-                'value' => $status->value,
-                'label' => $status->label(),
-            ]),
+            'merchants' => MerchantResource::collection(
+                $this->merchantService->getAll(['id', 'name', 'slug'])
+            ),
+            'statuses' => $this->getStatusOptions(),
         ]);
     }
 
@@ -46,33 +45,16 @@ class TransactionController extends Controller
      */
     public function create(): Response
     {
-        // Get user's merchant if merchant_owner
         $user = Auth::user();
         $merchant = null;
 
+        // Get merchant for merchant_owner role
         if ($user->hasRole('merchant_owner')) {
             $merchant = $this->merchantService->getByKeeperId($user->id, ['id', 'slug', 'name']);
         }
 
         return Inertia::render('Cashier/CreateTransaction', [
-            'merchant' => $merchant ? [
-                'id' => $merchant->id,
-                'slug' => $merchant->slug,
-                'name' => $merchant->name,
-                'products' => $merchant->products->map(function ($product) {
-                    return [
-                        'id' => $product->id,
-                        'name' => $product->name,
-                        'thumbnail' => $product->thumbnail,
-                        'price' => $product->price,
-                        'stock' => $product->pivot->stock,
-                        'category' => [
-                            'id' => $product->category?->id,
-                            'name' => $product->category?->name,
-                        ],
-                    ];
-                }),
-            ] : null,
+            'merchant' => $merchant ? new MerchantResource($merchant) : null,
         ]);
     }
 
@@ -86,11 +68,11 @@ class TransactionController extends Controller
 
             return redirect()
                 ->route('cashier.transactions.show', $transaction->id)
-                ->with('success', 'Transaksi berhasil dibuat');
+                ->with('success', 'Transaction created successfully');
         } catch (\Exception $e) {
             return back()
                 ->withInput()
-                ->with('error', 'Gagal membuat transaksi: ' . $e->getMessage());
+                ->with('error', 'Failed to create transaction: ' . $e->getMessage());
         }
     }
 
@@ -124,11 +106,12 @@ class TransactionController extends Controller
     public function markAsPaid(Request $request, string $id): RedirectResponse
     {
         try {
-            $this->transactionService->markAsPaid($id, $request->only(['payment_method', 'payment_reference']));
+            $paymentData = $request->only(['payment_method', 'payment_reference']) ?? [];
+            $this->transactionService->markAsPaid($id, $paymentData);
 
-            return back()->with('success', 'Transaksi berhasil ditandai sebagai lunas');
+            return back()->with('success', 'Transaction marked as paid successfully');
         } catch (\Exception $e) {
-            return back()->with('error', 'Gagal menandai transaksi: ' . $e->getMessage());
+            return back()->with('error', 'Failed to mark transaction as paid: ' . $e->getMessage());
         }
     }
 
@@ -140,9 +123,9 @@ class TransactionController extends Controller
         try {
             $this->transactionService->cancel($id);
 
-            return back()->with('success', 'Transaksi berhasil dibatalkan');
+            return back()->with('success', 'Transaction cancelled successfully');
         } catch (\Exception $e) {
-            return back()->with('error', 'Gagal membatalkan transaksi: ' . $e->getMessage());
+            return back()->with('error', 'Failed to cancel transaction: ' . $e->getMessage());
         }
     }
 
@@ -151,20 +134,35 @@ class TransactionController extends Controller
      */
     public function reports(Request $request): Response
     {
-        $filters = $request->only(['merchant_id', 'start_date', 'end_date']);
+        $filters = $request->only(['merchant_id', 'start_date', 'end_date']) ?? [];
 
-        $summary = null;
-        if (!empty($filters['merchant_id'])) {
-            $summary = $this->transactionService->getSummaryByMerchant(
+        $summary = !empty($filters['merchant_id'])
+            ? $this->transactionService->getSummaryByMerchant(
                 $filters['merchant_id'],
-                $request->only(['start_date', 'end_date'])
-            );
-        }
+                $request->only(['start_date', 'end_date']) ?? []
+            )
+            : null;
 
         return Inertia::render('Admin/Transactions/Reports', [
             'summary' => $summary,
             'filters' => $filters,
-            'merchants' => $this->merchantService->getAll(['id', 'name']),
+            'merchants' => MerchantResource::collection(
+                $this->merchantService->getAll(['id', 'name', 'slug'])
+            ),
         ]);
+    }
+
+    /**
+     * Get transaction status options for dropdown
+     */
+    private function getStatusOptions(): array
+    {
+        return collect(TransactionEnum::cases())
+            ->map(fn($status) => [
+                'value' => $status->value,
+                'label' => $status->label(),
+                'color' => $status->color(),
+            ])
+            ->toArray();
     }
 }

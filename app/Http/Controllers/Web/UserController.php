@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Enum\RolesEnum;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Users\AssignRoleRequest;
 use App\Http\Requests\Users\RegisterMerchantRequest;
-use App\Http\Requests\Users\RegisterRequest;
 use App\Http\Requests\Users\SwitchTeamRequest;
 use App\Http\Requests\Users\UpdateProfileRequest;
+use App\Models\Role;
 use App\Services\UserService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,36 +23,169 @@ class UserController extends Controller
     ) {}
 
     /**
-     * Display user list
+     * Display user list - SUPER ADMIN ONLY
+     * Shows ALL users across all teams
      */
     public function index(Request $request): Response
     {
-        $filters = $request->only(['role', 'search']);
+        $user = Auth::user();
+
+        // Only Super Admin can see all users
+        if (!$user->hasRole(RolesEnum::SUPER_ADMIN->value)) {
+            abort(403, 'Unauthorized access. Super Admin only.');
+        }
+
+        $filters = $request->only(['role', 'search', 'team_id']) ?? [];
+
         $users = $this->userService->getAllUsers($filters);
+        $users->load(['roles', 'teams', 'currentTeam']);
 
-        $users->load(['roles', 'teams', 'currentTeams']);
+        // Get statistics
+        $stats = [
+            'total_users' => $users->count(),
+            'total_merchants' => $users->filter(fn($u) => $u->hasRole(RolesEnum::MERCHANT_OWNER->value))->count(),
+            'total_customers' => $users->filter(fn($u) => $u->hasRole(RolesEnum::CUSTOMER->value))->count(),
+            'total_staff' => $users->filter(fn($u) => $u->hasAnyRole([
+                RolesEnum::ADMIN->value,
+                RolesEnum::CASHIER->value,
+                RolesEnum::WAREHOUSE_STAFF->value
+            ]))->count(),
+        ];
 
-        return Inertia::render('Admin/Users/index', [
-            'users' => $users,
+        return Inertia::render('Admin/Users/UsersPage', [
+            'users' => $users->map(fn($u) => [
+                'id' => $u->id,
+                'name' => $u->name,
+                'email' => $u->email,
+                'phone' => $u->phone,
+                'avatar' => $u->avatar,
+                'role' => $u->roles->first()?->name,
+                'role_label' => RolesEnum::tryFrom($u->roles->first()?->name)?->label() ?? 'Unknown',
+                'current_team' => $u->currentTeam ? [
+                    'id' => $u->currentTeam->id,
+                    'name' => $u->currentTeam->name,
+                ] : null,
+                'teams_count' => $u->teams->count(),
+                'created_at' => $u->created_at->format('d M Y'),
+                'email_verified_at' => $u->email_verified_at?->format('d M Y'),
+            ]),
             'filters' => $filters,
+            'roles' => $this->getRoleOptions(),
+            'stats' => $stats,
         ]);
     }
 
     /**
-     * Show user profile
+     * Display all customers across all teams - SUPER ADMIN ONLY
+     */
+    public function allCustomers(Request $request): Response
+    {
+        $user = Auth::user();
+
+        // Only Super Admin can see all customers
+        if (!$user->hasRole(RolesEnum::SUPER_ADMIN->value)) {
+            abort(403, 'Unauthorized access. Super Admin only.');
+        }
+
+        $filters = $request->only(['search', 'team_id', 'sort_by']);
+
+        $customers = $this->userService->getAllCustomers($filters);
+
+        return Inertia::render('Admin/Customers/AllCustomers', [
+            'customers' => $customers->map(fn($customer) => [
+                'id' => $customer->id,
+                'name' => $customer->name,
+                'email' => $customer->email,
+                'phone' => $customer->phone ?? '-',
+                'avatar' => $customer->avatar,
+                'teams' => $customer->teams->map(fn($team) => [
+                    'id' => $team->id,
+                    'name' => $team->name,
+                    'joined_at' => $team->pivot->created_at->format('d M Y'),
+                ]),
+                'total_orders' => $customer->orders_count ?? 0,
+                'total_spent' => $customer->orders_sum_total ?? 0,
+                'registered_at' => $customer->created_at->format('d M Y'),
+            ]),
+            'filters' => $filters,
+            'stats' => [
+                'total_customers' => $customers->count(),
+                'total_spent' => $customers->sum('orders_sum_total'),
+            ]
+        ]);
+    }
+
+    /**
+     * Show user detail
      */
     public function show(string $id): Response
     {
+        $currentUser = Auth::user();
         $user = $this->userService->getUserById($id);
 
-        if (!$user) {
-            abort(404, 'User not found');
+        abort_if(!$user, 404, 'User not found');
+
+        // Authorization: Super Admin can see all, others only in same team
+        if (!$currentUser->hasRole(RolesEnum::SUPER_ADMIN->value)) {
+            if (!$currentUser->teams->contains($user->current_team_id)) {
+                abort(403, 'Unauthorized access');
+            }
         }
 
-        $user->load(['roles', 'teams', 'currentTeams']);
+        return Inertia::render('Admin/Users/UsersDetail', [
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'avatar' => $user->avatar,
+                'role' => $user->roles->first()?->name,
+                'role_label' => RolesEnum::tryFrom($user->roles->first()?->name)?->label(),
+                'current_team' => $user->currentTeam ? [
+                    'id' => $user->currentTeam->id,
+                    'name' => $user->currentTeam->name,
+                ] : null,
+                'teams' => $user->teams->map(fn($team) => [
+                    'id' => $team->id,
+                    'name' => $team->name,
+                    'joined_at' => $team->pivot->created_at->format('d M Y'),
+                ]),
+                'created_at' => $user->created_at->format('d M Y H:i'),
+                'email_verified_at' => $user->email_verified_at?->format('d M Y H:i'),
+            ],
+            'can' => [
+                'edit' => $currentUser->id === $user->id || $currentUser->hasRole(RolesEnum::SUPER_ADMIN->value),
+                'assign_role' => $currentUser->hasRole(RolesEnum::SUPER_ADMIN->value),
+            ]
+        ]);
+    }
 
-        return Inertia::render('Admin/Users/detail', [
-            'user' => $user->load(['teams', 'currentTeams', 'roles']),
+    /**
+     * Show current user profile
+     */
+    public function profile(): Response
+    {
+        $user = Auth::user();
+
+        return Inertia::render('Profile/Show', [
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'avatar' => $user->avatar,
+                'role' => $user->roles->first()?->name,
+                'role_label' => RolesEnum::tryFrom($user->roles->first()?->name)?->label(),
+                'current_team' => $user->currentTeam ? [
+                    'id' => $user->currentTeam->id,
+                    'name' => $user->currentTeam->name,
+                ] : null,
+                'teams' => $user->teams->map(fn($team) => [
+                    'id' => $team->id,
+                    'name' => $team->name,
+                    'is_current' => $team->id === $user->current_team_id,
+                ]),
+            ]
         ]);
     }
 
@@ -61,10 +195,9 @@ class UserController extends Controller
     public function edit(): Response
     {
         $user = Auth::user();
-        $user->load(['roles', 'teams', 'currentTeams']);
 
         return Inertia::render('Profile/Edit', [
-            'user' => $user,
+            'user' => $user->load(['roles', 'teams', 'currentTeam']),
         ]);
     }
 
@@ -73,50 +206,43 @@ class UserController extends Controller
      */
     public function update(UpdateProfileRequest $request): RedirectResponse
     {
-        $user = Auth::user();
-        $this->userService->updateProfile($user, $request->validated());
+        try {
+            $this->userService->updateProfile(Auth::user(), $request->validated());
 
-        return redirect()->back()->with('success', 'Profile updated successfully');
+            return back()->with('success', 'Profile updated successfully');
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
     }
 
     /**
-     * Show register form
-     */
-    public function create(): Response
-    {
-        return Inertia::render('Admin/Users/create');
-    }
-
-    /**
-     * Register new user
-     */
-    public function store(RegisterRequest $request): RedirectResponse
-    {
-        $user = $this->userService->register($request->validated());
-
-        Auth::login($user);
-
-        return redirect()->route('dashboard')->with('success', 'Registration successful');
-    }
-
-    /**
-     * Show register merchant form
+     * Show register merchant form (Guest only)
      */
     public function createMerchant(): Response
     {
-        return Inertia::render('Admin/Users/createMerchant');
+        return Inertia::render('Admin/Auth/RegisterMerchant', [
+            'roles' => $this->getMerchantRoleOptions(),
+        ]);
     }
 
     /**
-     * Register merchant with team
+     * Register new merchant with team
      */
     public function storeMerchant(RegisterMerchantRequest $request): RedirectResponse
     {
-        $user = $this->userService->registerMerchantWithTeam($request->validated());
+        try {
+            $user = $this->userService->registerMerchantWithTeam($request->validated());
 
-        Auth::login($user);
+            Auth::login($user);
 
-        return redirect()->route('dashboard')->with('success', 'Merchant registration successful');
+            return redirect()
+                ->route('dashboard')
+                ->with('success', 'Merchant registration successful! Welcome to your dashboard.');
+        } catch (\Exception $e) {
+            return back()
+                ->withInput()
+                ->with('error', 'Registration failed: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -125,47 +251,66 @@ class UserController extends Controller
     public function switchTeam(SwitchTeamRequest $request): RedirectResponse
     {
         try {
-            $user = Auth::user();
-            $this->userService->switchTeam($user, $request->validated()['team_id']);
+            $this->userService->switchTeam(Auth::user(), $request->validated()['team_id']);
 
-            return redirect()->back()->with('success', 'Team switched successfully');
+            return back()->with('success', 'Team switched successfully');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', $e->getMessage());
+            return back()->with('error', $e->getMessage());
         }
     }
 
     /**
-     * Assign role to user (Admin only)
+     * Assign role to user (Super Admin only)
      */
     public function assignRole(AssignRoleRequest $request, string $userId): RedirectResponse
     {
+        $currentUser = Auth::user();
+
+        if (!$currentUser->hasRole(RolesEnum::SUPER_ADMIN->value)) {
+            return back()->with('error', 'Unauthorized. Super Admin only.');
+        }
+
         try {
             $user = $this->userService->getUserById($userId);
 
-            if (!$user) {
-                return redirect()->back()->with('error', 'User not found');
-            }
+            abort_if(!$user, 404, 'User not found');
 
             $this->userService->assignRole($user, $request->validated()['role']);
 
-            return redirect()->back()->with('success', 'Role assigned successfully');
+            return back()->with('success', 'Role assigned successfully');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', $e->getMessage());
+            return back()->with('error', $e->getMessage());
         }
     }
 
     /**
-     * Show user profile settings page
+     * Get available roles for dropdown
      */
-    public function profile(): Response
+    private function getRoleOptions(): array
     {
-        $user = Auth::user();
+        return Role::select(['id', 'name'])
+            ->get()
+            ->map(fn($role) => [
+                'value' => $role->name,
+                'label' => RolesEnum::tryFrom($role->name)?->label() ?? $role->name,
+            ])
+            ->toArray();
+    }
 
-        // Load relasi
-        $user->load(['roles', 'teams', 'currentTeams']);
-
-        return Inertia::render('Profile/Show', [
-            'user' => $user,
-        ]);
+    /**
+     * Get merchant-specific roles for registration
+     */
+    private function getMerchantRoleOptions(): array
+    {
+        return [
+            [
+                'value' => RolesEnum::MERCHANT_OWNER->value,
+                'label' => RolesEnum::MERCHANT_OWNER->label(),
+            ],
+            [
+                'value' => RolesEnum::ADMIN->value,
+                'label' => RolesEnum::ADMIN->label(),
+            ],
+        ];
     }
 }
