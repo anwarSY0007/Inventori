@@ -103,7 +103,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
             // Team Customers Management
             Route::prefix('customers')->name('customers.')->group(function () {
-                Route::get('/', [CustomerController::class, 'Index'])->name('index');
+                Route::get('/', [CustomerController::class, 'index'])->name('index');
                 Route::get('/{customerId}', [CustomerController::class, 'show'])->name('show');
             });
         });
@@ -115,8 +115,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     | Cashier & Warehouse Staff can view customers (read-only)
     */
     Route::middleware(['role:' . RolesEnum::CASHIER->value . '|' . RolesEnum::WAREHOUSE_STAFF->value])
-        ->prefix('customers')
-        ->name('customers.')
+        ->prefix('staff/customers')
+        ->name('staff.customers.')
         ->group(function () {
             Route::get('/', [CustomerController::class, 'index'])->name('index');
             Route::get('/{customerId}', [CustomerController::class, 'show'])->name('show');
@@ -132,7 +132,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         // Manage Categories
         Route::middleware(['can:' . PermissionEnum::MANAGE_CATEGORIES->value])->group(function () {
-            Route::get('/categories', [CategoryController::class, 'index'])->name('categories.index');
+            Route::resource('categories', CategoryController::class)
+                ->only(['index']);
         });
 
         // Manage Warehouses
@@ -156,15 +157,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::middleware(['can:' . PermissionEnum::MANAGE_WAREHOUSE_STOCK->value])->group(function () {
                 Route::get('/', [StockMutationController::class, 'index'])->name('index');
                 Route::get('/levels', [StockMutationController::class, 'stockLevels'])->name('levels');
-                Route::get('/history/{productId}', [StockMutationController::class, 'productHistory'])
+                Route::get('/history/{productSlug}', [StockMutationController::class, 'productHistory'])
                     ->name('history');
-                Route::get('/report/warehouse/{warehouseId}', [StockMutationController::class, 'warehouseReport'])
+                Route::get('/report/warehouse/{warehouseSlug}', [StockMutationController::class, 'warehouseReport'])
                     ->name('report.warehouse');
             });
 
             // Merchant Report - Owner/Admin only
             Route::middleware(['can:' . PermissionEnum::VIEW_MERCHANT_REPORTS->value])->group(function () {
-                Route::get('/report/merchant/{merchantId}', [StockMutationController::class, 'merchantReport'])
+                Route::get('/report/merchant/{merchantSlug}', [StockMutationController::class, 'merchantReport'])
                     ->name('report.merchant');
             });
         });
