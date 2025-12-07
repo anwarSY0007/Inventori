@@ -71,6 +71,16 @@ class User extends Authenticatable
         return $this->hasMany(Transaction::class, 'cashier_id');
     }
 
+    /**
+     * Relasi Transaksi sebagai CUSTOMER (Pembeli)
+     * Tambahkan ini agar error 'undefined relationship [orders]' hilang
+     */
+    public function orders(): HasMany
+    {
+        // Pastikan tabel transactions punya kolom 'customer_id' atau 'user_id' untuk pembeli
+        return $this->hasMany(Transaction::class, 'customer_id');
+    }
+
     public function stockMutations(): HasMany
     {
         return $this->hasMany(StockMutation::class, 'created_by');

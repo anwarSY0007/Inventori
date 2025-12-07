@@ -1,5 +1,6 @@
 import { wayfinder } from '@laravel/vite-plugin-wayfinder';
 import tailwindcss from '@tailwindcss/vite';
+import basicSsl from '@vitejs/plugin-basic-ssl';
 import react from '@vitejs/plugin-react';
 import laravel from 'laravel-vite-plugin';
 import { resolve } from 'path';
@@ -22,6 +23,7 @@ export default defineConfig({
     sourcemap: false,
   },
   plugins: [
+    basicSsl(),
     laravel({
       input: ['resources/css/app.css', 'resources/js/app.tsx'],
       // ssr: 'resources/js/ssr.tsx',

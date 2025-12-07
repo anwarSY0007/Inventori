@@ -208,8 +208,8 @@ class UserService
             'roles',
             'teams',
             'orders' => function ($q) {
-                $q->select('user_id', DB::raw('COUNT(*) as count'), DB::raw('SUM(total) as total'))
-                    ->groupBy('user_id');
+                $q->select('customer_id', DB::raw('COUNT(*) as count'), DB::raw('SUM(grand_total) as total'))
+                    ->groupBy('customer_id');
             }
         ])->whereHas('roles', function ($q) {
             $q->where('name', RolesEnum::CUSTOMER->value);

@@ -10,7 +10,6 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
-import { index } from '@/routes/customers';
 import { PageProps, type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import {
@@ -31,7 +30,7 @@ import AppLogoIcon from './app-logo-icon';
 const mainNavItems: NavItem[] = [
   {
     title: 'Dashboard',
-    href: '/dashboard',
+    href: '/',
     icon: LayoutGrid,
     roles: ['super_admin', 'merchant_owner', 'admin_merchant', 'warehouse_staff', 'cashier'],
   },
@@ -69,7 +68,7 @@ const mainNavItems: NavItem[] = [
   },
   {
     title: 'Customers',
-    href: index.url(),
+    href: '/team/customers',
     icon: UsersRound,
     roles: ['merchant_owner', 'admin_merchant', 'cashier', 'warehouse_staff'],
   },

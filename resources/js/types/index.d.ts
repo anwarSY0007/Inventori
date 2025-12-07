@@ -1,6 +1,3 @@
-import { InertiaLinkProps } from '@inertiajs/react';
-import { LucideIcon } from 'lucide-react';
-
 export interface Auth {
   user: User;
 }
@@ -17,10 +14,11 @@ export interface NavGroup {
 
 export interface NavItem {
   title: string;
-  href: NonNullable<InertiaLinkProps['href']>;
-  icon?: LucideIcon | null;
+  href: string;
+  icon?: React.ComponentType<{ className?: string }>;
   roles?: string[];
   isActive?: boolean;
+  items?: NavItem[];
 }
 
 export type PageProps<T extends Record<string, unknown> = Record<string, unknown>> = T & SharedData;
@@ -33,6 +31,24 @@ export interface AppLogoProps {
   appName?: string; // Nama Aplikasi
   className?: string;
   [key: string]: unknown;
+}
+
+// User Role Type
+export interface Role {
+  id: string;
+  name: string;
+  guard_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// User Permission Type
+export interface Permission {
+  id: string;
+  name: string;
+  guard_name: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SharedData {
@@ -67,17 +83,24 @@ export interface Team {
 }
 
 // Customer Type
-export interface Customer {
+interface Customer {
   id: string;
   name: string;
   email: string;
   phone?: string;
   avatar?: string;
-  total_orders?: number;
-  total_spent?: number;
-  last_order_at?: string;
+  teams?: string;
+  total_orders: number;
+  total_spent: number;
   registered_at: string;
   joined_team_at?: string;
+}
+
+export interface FlashMessages {
+  success?: string;
+  error?: string;
+  warning?: string;
+  info?: string;
 }
 
 export interface TeamMember {
@@ -120,4 +143,139 @@ export interface User {
     updated_at: string;
   };
   [key: string]: unknown; // This allows for additional properties...
+}
+// Common Types
+export interface PaginationLink {
+  url: string | null;
+  label: string;
+  active: boolean;
+}
+
+export interface PaginatedData<T> {
+  data: T[];
+  links: PaginationLink[];
+  current_page: number;
+  first_page_url: string;
+  from: number;
+  last_page: number;
+  last_page_url: string;
+  next_page_url: string | null;
+  path: string;
+  per_page: number;
+  prev_page_url: string | null;
+  to: number;
+  total: number;
+}
+export interface Product {
+  id: string;
+  name: string;
+  slug: string;
+  sku?: string;
+  description?: string;
+  price: number;
+  stock?: number;
+  image?: string;
+  category?: {
+    id: string;
+    name: string;
+  };
+  created_at: string;
+  updated_at: string;
+}
+
+// Category Type
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  image?: string;
+  products_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Transaction Type
+export interface Transaction {
+  id: string;
+  order_number: string;
+  customer_name?: string;
+  customer_id?: string;
+  total: number;
+  status: string;
+  payment_method?: string;
+  created_at: string;
+  updated_at: string;
+  items?: TransactionItem[];
+}
+
+// Transaction Item Type
+export interface TransactionItem {
+  id: string;
+  product_id: string;
+  product_name: string;
+  quantity: number;
+  price: number;
+  subtotal: number;
+}
+
+// Warehouse Type
+export interface Warehouse {
+  id: string;
+  name: string;
+  slug: string;
+  address?: string;
+  phone?: string;
+  products_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Stock Mutation Type
+export interface StockMutation {
+  id: string;
+  product_id: string;
+  product_name: string;
+  warehouse_id?: string;
+  warehouse_name?: string;
+  type: 'in' | 'out' | 'adjustment';
+  quantity: number;
+  note?: string;
+  created_by?: string;
+  created_at: string;
+}
+
+// Merchant Type
+export interface Merchant {
+  id: string;
+  name: string;
+  slug: string;
+  owner_id: string;
+  owner_name?: string;
+  phone?: string;
+  address?: string;
+  products_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Dashboard Stats Type
+export interface DashboardStats {
+  total_revenue: number;
+  total_orders: number;
+  total_customers: number;
+  total_products: number;
+  revenue_growth?: number;
+  orders_growth?: number;
+}
+
+// Filter Type
+export interface Filters {
+  search?: string;
+  role?: string;
+  team_id?: string;
+  status?: string;
+  sort_by?: string;
+  sort_direction?: 'asc' | 'desc';
+  per_page?: number;
 }

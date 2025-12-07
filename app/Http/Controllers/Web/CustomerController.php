@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Web;
 
 use App\Enum\RolesEnum;
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Services\TeamService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class CustomerController extends Controller
@@ -15,17 +17,71 @@ class CustomerController extends Controller
         protected TeamService $teamService
     ) {}
 
-    /**
-     * Display customers for specific team/store
-     * Accessible by: MERCHANT_OWNER, ADMIN, CASHIER
-     */
     public function index(Request $request)
     {
         $user = Auth::user();
 
-        // Check if user has team context
+        // Super Admin bisa lihat semua customer di semua team
+        if ($user->hasRole(RolesEnum::SUPER_ADMIN->value)) {
+            return $this->indexForSuperAdmin($request);
+        }
+
+        // Owner/Admin/Staff lihat customer di team mereka
+        return $this->indexForTeam($request);
+    }
+
+    private function indexForSuperAdmin(Request $request)
+    {
+        try {
+            // Get all customers across all teams
+            $customers = User::whereHas('roles', function ($query) {
+                $query->where('name', RolesEnum::CUSTOMER->value);
+            })
+                ->with(['roles', 'teams'])
+                ->get()
+                ->map(function ($customer) {
+                    return [
+                        'id' => $customer->id,
+                        'name' => $customer->name,
+                        'email' => $customer->email,
+                        'phone' => $customer->phone ?? '-',
+                        'avatar' => $customer->avatar,
+                        'teams' => $customer->teams->map(fn($t) => $t->name)->join(', '),
+                        'total_orders' => 0,
+                        'total_spent' => 0,
+                        'registered_at' => $customer->created_at->format('d M Y'),
+                    ];
+                });
+
+            return Inertia::render('Admin/Customers/AllCustomers', [
+                'customers' => $customers,
+                'team' => [
+                    'id' => 'all',
+                    'name' => 'All Teams (Super Admin View)',
+                ],
+                'stats' => [
+                    'total_customers' => $customers->count(),
+                ],
+                'filters' => $request->only(['search']),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('CustomerController@indexForSuperAdmin error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return redirect()->back()->with('error', 'Error: ' . $e->getMessage());
+        }
+    }
+
+    private function indexForTeam(Request $request)
+    {
+        $user = Auth::user();
+
+        // Check team context
         if (!$user->current_team_id) {
-            return redirect()->back()->with('error', 'Anda tidak memiliki tim aktif.');
+            return redirect()->route('dashboard')
+                ->with('error', 'No active team. Please select a team first.');
         }
 
         // Check authorization
@@ -35,42 +91,59 @@ class CustomerController extends Controller
             RolesEnum::CASHIER->value,
             RolesEnum::WAREHOUSE_STAFF->value
         ])) {
-            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini.');
+            return redirect()->back()
+                ->with('error', 'Access denied. Required role: Owner, Admin, Cashier, or Warehouse Staff.');
         }
 
-        $filters = $request->only(['search', 'sort_by', 'sort_direction']);
-
         try {
-            // Get customers for current team
-            $customers = $this->teamService->getTeamCustomers(
-                $user->current_team_id,
-                $filters
-            );
+            $team = $user->currentTeam;
 
-            return Inertia::render('Admin/Customers/Index', [
-                'customers' => $customers->map(fn($customer) => [
-                    'id' => $customer->id,
-                    'name' => $customer->name,
-                    'email' => $customer->email,
-                    'phone' => $customer->phone ?? '-',
-                    'avatar' => $customer->avatar,
-                    'total_orders' => $customer->orders_count ?? 0,
-                    'total_spent' => $customer->orders_sum_total ?? 0,
-                    'last_order_at' => $customer->last_order_at?->format('d M Y') ?? '-',
-                    'registered_at' => $customer->created_at->format('d M Y'),
-                    'joined_team_at' => $customer->pivot?->created_at?->format('d M Y') ?? '-',
-                ]),
-                'filters' => $filters,
+            if (!$team) {
+                return redirect()->route('dashboard')
+                    ->with('error', 'Team not found.');
+            }
+
+            // Get customers from current team
+            $customers = $team->customers()
+                ->whereHas('roles', function ($query) {
+                    $query->where('name', RolesEnum::CUSTOMER->value);
+                })
+                ->with('roles')
+                ->get()
+                ->map(function ($customer) {
+                    return [
+                        'id' => $customer->id,
+                        'name' => $customer->name,
+                        'email' => $customer->email,
+                        'phone' => $customer->phone ?? '-',
+                        'avatar' => $customer->avatar,
+                        'total_orders' => 0,
+                        'total_spent' => 0,
+                        'last_order_at' => '-',
+                        'registered_at' => $customer->created_at->format('d M Y'),
+                        'joined_team_at' => $customer->pivot->created_at->format('d M Y'),
+                    ];
+                });
+
+            return Inertia::render('Admin/Customers/CustomerPages', [
+                'customers' => $customers,
                 'team' => [
-                    'id' => $user->currentTeam->id,
-                    'name' => $user->currentTeam->name,
+                    'id' => $team->id,
+                    'name' => $team->name,
                 ],
                 'stats' => [
                     'total_customers' => $customers->count(),
-                ]
+                ],
+                'filters' => $request->only(['search']),
             ]);
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', $e->getMessage());
+            Log::error('CustomerController@indexForTeam error', [
+                'error' => $e->getMessage(),
+                'user_id' => $user->id,
+                'team_id' => $user->current_team_id,
+            ]);
+
+            return redirect()->back()->with('error', 'Error: ' . $e->getMessage());
         }
     }
 
