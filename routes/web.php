@@ -49,6 +49,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/customers/all', 'allCustomers')->name('customers.all');
         });
 
+<<<<<<< HEAD
     // 3. ADMIN / MANAGEMENT MODULE (Resources)
     Route::prefix('admin')->name('admin.')->group(function () {
 
@@ -56,6 +57,60 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::middleware(['can:' . PermissionEnum::MANAGE_MERCHANTS->value])->controller(MerchantController::class)->group(function () {
             Route::get('/merchants/{slug}/products', 'products')->name('merchants.products');
             Route::resource('merchants', MerchantController::class)->parameters(['merchants' => 'slug']);
+=======
+    /*
+    |--------------------------------------------------------------------------
+    | TEAM MANAGEMENT MODULE
+    |--------------------------------------------------------------------------
+    | Merchant Owner & Admin manage their team members and customers
+    */
+    Route::middleware(['role:' . RolesEnum::MERCHANT_OWNER->value . '|' . RolesEnum::ADMIN->value])
+        ->prefix('team')
+        ->name('team.')
+        ->group(function () {
+
+            // Team Members Management (Staff only - not customers)
+            Route::prefix('members')->name('members.')->group(function () {
+                Route::get('/', [TeamMemberController::class, 'index'])->name('index');
+                Route::post('/', [TeamMemberController::class, 'store'])->name('store');
+                Route::put('/{userId}', [TeamMemberController::class, 'update'])->name('update');
+                Route::delete('/{userId}', [TeamMemberController::class, 'destroy'])->name('destroy');
+            });
+
+            // Team Customers Management
+            Route::prefix('customers')->name('customers.')->group(function () {
+                Route::get('/', [CustomerController::class, 'index'])->name('index');
+                Route::get('/{customerId}', [CustomerController::class, 'show'])->name('show');
+            });
+        });
+
+    /*
+    |--------------------------------------------------------------------------
+    | STAFF ACCESS - View Customers Only
+    |--------------------------------------------------------------------------
+    | Cashier & Warehouse Staff can view customers (read-only)
+    */
+    Route::middleware(['role:' . RolesEnum::CASHIER->value . '|' . RolesEnum::WAREHOUSE_STAFF->value])
+        ->prefix('staff/customers')
+        ->name('staff.customers.')
+        ->group(function () {
+            Route::get('/', [CustomerController::class, 'index'])->name('index');
+            Route::get('/{customerId}', [CustomerController::class, 'show'])->name('show');
+        });
+
+    /*
+    |--------------------------------------------------------------------------
+    | ADMIN MODULE - General Management
+    |--------------------------------------------------------------------------
+    | Products, Categories, Warehouses, Stock, Reports
+    */
+    Route::prefix('admin')->name('admin.')->group(function () {
+
+        // Manage Categories
+        Route::middleware(['can:' . PermissionEnum::MANAGE_CATEGORIES->value])->group(function () {
+            Route::resource('categories', CategoryController::class)
+                ->only(['index']);
+>>>>>>> 2ca1d8a30384389331fd5119c6c960b8a1dc105f
         });
 
         // Inventory: Categories, Products, Warehouses
@@ -75,10 +130,25 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::prefix('stock')->name('stock.')->controller(StockMutationController::class)->group(function () {
             // Warehouse Stock
             Route::middleware(['can:' . PermissionEnum::MANAGE_WAREHOUSE_STOCK->value])->group(function () {
+<<<<<<< HEAD
                 Route::get('/', 'index')->name('index');
                 Route::get('/levels', 'stockLevels')->name('levels');
                 Route::get('/history/{productSlug}', 'productHistory')->name('history');
                 Route::get('/report/warehouse/{warehouseSlug}', 'warehouseReport')->name('report.warehouse');
+=======
+                Route::get('/', [StockMutationController::class, 'index'])->name('index');
+                Route::get('/levels', [StockMutationController::class, 'stockLevels'])->name('levels');
+                Route::get('/history/{productSlug}', [StockMutationController::class, 'productHistory'])
+                    ->name('history');
+                Route::get('/report/warehouse/{warehouseSlug}', [StockMutationController::class, 'warehouseReport'])
+                    ->name('report.warehouse');
+            });
+
+            // Merchant Report - Owner/Admin only
+            Route::middleware(['can:' . PermissionEnum::VIEW_MERCHANT_REPORTS->value])->group(function () {
+                Route::get('/report/merchant/{merchantSlug}', [StockMutationController::class, 'merchantReport'])
+                    ->name('report.merchant');
+>>>>>>> 2ca1d8a30384389331fd5119c6c960b8a1dc105f
             });
             // Merchant Report
             Route::middleware(['can:' . PermissionEnum::VIEW_MERCHANT_REPORTS->value])
