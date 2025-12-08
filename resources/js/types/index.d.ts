@@ -15,7 +15,7 @@ export interface NavGroup {
 export interface NavItem {
   title: string;
   href: string;
-  icon?: React.ComponentType<{ className?: string }>;
+  icon?: LucideIcon | null;
   roles?: string[];
   isActive?: boolean;
   items?: NavItem[];
@@ -251,10 +251,13 @@ export interface Merchant {
   name: string;
   slug: string;
   owner_id: string;
-  owner_name?: string;
+  thumbnail?: string;
+  keeper?: User;
   phone?: string;
-  address?: string;
-  products_count?: number;
+  alamat?: string;
+  total_products?: number;
+  total_transactions?: number;
+  total_customers?: number;
   created_at: string;
   updated_at: string;
 }

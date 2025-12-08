@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             RolePermissionSeeder::class,
             SuperAdminSeeder::class,
             MerchantSeeder::class,
+            CompleteAppSeeder::class
             // MerchantStaffSeeder::class
         ]);
         $userService = app(UserService::class);

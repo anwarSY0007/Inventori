@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\Merchant;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 
 class MerchantRepository
 {
@@ -14,6 +15,10 @@ class MerchantRepository
     public function getAllMerchant(array $field = ['*'], int $perPage = 25): LengthAwarePaginator
     {
         return Merchant::select($field)
+            ->withSum('transactions', 'grand_total')
+            ->withCount(['transactions as total_customers' => function ($query) {
+                $query->select(DB::raw('count(distinct customer_id)'));
+            }])
             ->with(['keeper', 'products.category'])
             ->latest()
             ->paginate($perPage);
@@ -24,6 +29,10 @@ class MerchantRepository
     public function getMerchantBySlug(string $slug, array $field = ['*']): Merchant
     {
         return Merchant::select($field)
+            ->withSum('transactions', 'grand_total')
+            ->withCount(['transactions as total_customers' => function ($query) {
+                $query->select(DB::raw('count(distinct customer_id)'));
+            }])
             ->with(['keeper', 'products.category'])
             ->where('slug', $slug)
             ->firstOrFail();

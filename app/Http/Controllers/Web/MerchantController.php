@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Enum\TransactionEnum;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Merchant\MerchantCreateRequest;
 use App\Http\Requests\Merchant\MerchantUpdateRequest;
 use App\Http\Resources\MerchantResource;
+use App\Models\Merchant;
+use App\Models\Transaction;
 use App\Services\MerchantService;
 use App\Services\UserService;
 use Illuminate\Http\RedirectResponse;
@@ -26,10 +29,29 @@ class MerchantController extends Controller
     public function index(Request $request): Response
     {
         $filters = $request->only(['search']) ?? [];
-        $merchants = $this->merchantService->getAll();
+        $merchants = $this->merchantService->getAll(['*']);
 
-        return Inertia::render('Admin/Merchants/Index', [
-            'merchants' => MerchantResource::collection($merchants),
+        $globalStats = [
+            'total_transactions' => Transaction::count(),
+            'total_revenue' => Transaction::where('status', TransactionEnum::PAID)->sum('grand_total'),
+            'total_customers' => Transaction::distinct('phone')->count('phone'),
+            'vip_merchants' => Transaction::select('merchant_id')
+                ->where('status', TransactionEnum::PAID)
+                ->groupBy('merchant_id')
+                ->havingRaw('SUM(grand_total) >= ?', [100000000])
+                ->get()
+                ->count(),
+        ];
+
+        return Inertia::render('Admin/Merchants/MerchantPage', [
+            'merchants' => MerchantResource::collection($merchants->items())->resolve(),
+            'stats' => $globalStats,
+            'meta' => [
+                'current_page' => $merchants->currentPage(),
+                'last_page' => $merchants->lastPage(),
+                'per_page' => $merchants->perPage(),
+                'total' => $merchants->total(),
+            ],
             'filters' => $filters,
         ]);
     }

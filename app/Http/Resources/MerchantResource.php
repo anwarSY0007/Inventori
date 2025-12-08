@@ -60,11 +60,9 @@ class MerchantResource extends JsonResource
             'total_products' => $this->whenLoaded('products', function () {
                 return $this->products->count();
             }),
-
+            'total_customers' => $this->total_customers ?? 0,
             // Total transactions count
-            'total_transactions' => $this->whenLoaded('transactions', function () {
-                return $this->transactions->count();
-            }),
+            'total_transactions' => $this->transactions_sum_grand_total ?? 0,
         ];
     }
 }

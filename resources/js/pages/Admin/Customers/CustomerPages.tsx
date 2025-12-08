@@ -78,7 +78,7 @@ export default function CustomerPage({ customers, team, stats, filters }: PagePr
           <div className='flex items-center gap-3'>
             <Avatar className='h-10 w-10'>
               <AvatarImage src={customer.avatar} alt={customer.name} />
-              <AvatarFallback className='bg-gradient-to-br from-purple-500 to-pink-500 text-white'>
+              <AvatarFallback className='bg-linear-to-br from-purple-500 to-pink-500 text-white'>
                 {customer.name
                   .split(' ')
                   .map((n) => n[0])
@@ -260,7 +260,7 @@ export default function CustomerPage({ customers, team, stats, filters }: PagePr
 
         {/* Stats Dashboard */}
         <div className='mb-8 grid gap-4 md:grid-cols-4'>
-          <div className='rounded-lg border bg-gradient-to-br from-blue-50 to-blue-100 p-4 dark:from-blue-950 dark:to-blue-900'>
+          <div className='rounded-lg border bg-linear-to-br from-blue-50 to-blue-100 p-4 dark:from-blue-950 dark:to-blue-900'>
             <div className='flex items-center justify-between'>
               <div>
                 <p className='text-sm font-medium text-muted-foreground'>Total Customers</p>
@@ -270,7 +270,7 @@ export default function CustomerPage({ customers, team, stats, filters }: PagePr
             </div>
           </div>
 
-          <div className='rounded-lg border bg-gradient-to-br from-green-50 to-green-100 p-4 dark:from-green-950 dark:to-green-900'>
+          <div className='rounded-lg border bg-linear-to-br from-green-50 to-green-100 p-4 dark:from-green-950 dark:to-green-900'>
             <div className='flex items-center justify-between'>
               <div>
                 <p className='text-sm font-medium text-muted-foreground'>VIP Customers</p>
@@ -282,7 +282,7 @@ export default function CustomerPage({ customers, team, stats, filters }: PagePr
             </div>
           </div>
 
-          <div className='rounded-lg border bg-gradient-to-br from-purple-50 to-purple-100 p-4 dark:from-purple-950 dark:to-purple-900'>
+          <div className='rounded-lg border bg-linear-to-br from-purple-50 to-purple-100 p-4 dark:from-purple-950 dark:to-purple-900'>
             <div className='flex items-center justify-between'>
               <div>
                 <p className='text-sm font-medium text-muted-foreground'>Total Orders</p>
@@ -294,7 +294,7 @@ export default function CustomerPage({ customers, team, stats, filters }: PagePr
             </div>
           </div>
 
-          <div className='rounded-lg border bg-gradient-to-br from-orange-50 to-orange-100 p-4 dark:from-orange-950 dark:to-orange-900'>
+          <div className='rounded-lg border bg-linear-to-br from-orange-50 to-orange-100 p-4 dark:from-orange-950 dark:to-orange-900'>
             <div className='flex items-center justify-between'>
               <div>
                 <p className='text-sm font-medium text-muted-foreground'>Total Revenue</p>

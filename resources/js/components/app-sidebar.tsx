@@ -45,12 +45,6 @@ const mainNavItems: NavItem[] = [
     roles: ['super_admin'],
   },
   {
-    title: 'All Customers',
-    href: '/admin/customers/all',
-    icon: UsersRound,
-    roles: ['super_admin'],
-  },
-  {
     title: 'Merchants',
     href: '/admin/merchants',
     icon: StoreIcon,

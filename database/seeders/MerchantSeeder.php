@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enum\RolesEnum;
+use App\Models\Merchant;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\UserService;
@@ -18,9 +19,10 @@ class MerchantSeeder extends Seeder
             [
                 'city' => 'Jakarta',
                 'store_name' => 'Toko Cabang Jakarta',
+                'store_phone' => '021-5551234',
+                'store_address' => 'Jl. Sudirman Kav 52-53, Jakarta Selatan 12190',
                 'owner' => ['name' => 'Budi Owner JKT', 'email' => 'owner.jkt@app.com', 'phone' => '08113232111'],
                 'staffs' => [
-                    // Kepala Toko / Admin Toko
                     ['role' => RolesEnum::ADMIN->value, 'name' => 'Ani Admin JKT', 'email' => 'admin.jkt@app.com', 'phone' => '08122222221'],
                     ['role' => RolesEnum::CASHIER->value, 'name' => 'Siti Kasir JKT', 'email' => 'kasir.jkt@app.com', 'phone' => '08122222222'],
                     ['role' => RolesEnum::WAREHOUSE_STAFF->value, 'name' => 'Ujang Gudang JKT', 'email' => 'gudang.jkt@app.com', 'phone' => '08122222223'],
@@ -33,9 +35,10 @@ class MerchantSeeder extends Seeder
             [
                 'city' => 'Bandung',
                 'store_name' => 'Toko Cabang Bandung',
+                'store_phone' => '022-2501234',
+                'store_address' => 'Jl. Dago No 45, Bandung 40135',
                 'owner' => ['name' => 'Asep Owner BDG', 'email' => 'owner.bdg@app.com', 'phone' => '08212221111'],
                 'staffs' => [
-                    // Kepala Toko / Admin Toko
                     ['role' => RolesEnum::ADMIN->value, 'name' => 'Euis Admin BDG', 'email' => 'admin.bdg@app.com', 'phone' => '08222222221'],
                     ['role' => RolesEnum::CASHIER->value, 'name' => 'Neng Kasir BDG', 'email' => 'kasir.bdg@app.com', 'phone' => '08222222222'],
                 ],
@@ -46,9 +49,10 @@ class MerchantSeeder extends Seeder
             [
                 'city' => 'Surabaya',
                 'store_name' => 'Toko Cabang Surabaya',
+                'store_phone' => '031-5321234',
+                'store_address' => 'Jl. Tunjungan No 88, Surabaya 60275',
                 'owner' => ['name' => 'Joko Owner SBY', 'email' => 'owner.sby@app.com', 'phone' => '08311111111'],
                 'staffs' => [
-                    // Note: Di data lama Surabaya tidak punya ADMIN (Kepala Toko), saya tambahkan agar lengkap
                     ['role' => RolesEnum::ADMIN->value, 'name' => 'Rudi Admin SBY', 'email' => 'admin.sby@app.com', 'phone' => '08322222220'],
                     ['role' => RolesEnum::CASHIER->value, 'name' => 'Dewi Kasir SBY', 'email' => 'kasir.sby@app.com', 'phone' => '08322222221'],
                     ['role' => RolesEnum::WAREHOUSE_STAFF->value, 'name' => 'Bambang Gudang SBY', 'email' => 'gudang.sby@app.com', 'phone' => '08322222222'],
@@ -62,12 +66,13 @@ class MerchantSeeder extends Seeder
         foreach ($merchantsData as $data) {
             $this->command->info("🏗️  Memproses: {$data['store_name']}...");
 
-            // 1. Register Merchant Owner & Create Team
+            // 1. Check if owner already exists
             if (User::where('email', $data['owner']['email'])->exists()) {
                 $this->command->warn("   ⚠️ Owner {$data['owner']['email']} sudah ada. Skip.");
                 continue;
             }
 
+            // 2. Register Merchant Owner & Create Team
             $owner = $userService->registerMerchantWithTeam([
                 'name' => $data['owner']['name'],
                 'email' => $data['owner']['email'],
@@ -77,19 +82,32 @@ class MerchantSeeder extends Seeder
                 'role' => RolesEnum::MERCHANT_OWNER->value
             ]);
 
-            // --- FIX START ---
-            // Pastikan Role ter-assign secara eksplisit ke model User Owner
-            // Ini untuk jaga-jaga jika logic di UserService tidak melakukan assignRole
+            // Ensure role is assigned
             $owner->assignRole(RolesEnum::MERCHANT_OWNER->value);
-            // --- FIX END ---
-
             $owner->email_verified_at = now();
             $owner->saveQuietly();
 
-            // Ambil Team yang baru saja dibuat oleh service
+            // Get the team created by UserService
             $team = Team::where('keeper_id', $owner->id)->first();
 
-            // 2. Create Staffs & Assign to Team
+            if (!$team) {
+                $this->command->error("   ❌ Team not found for owner: {$owner->email}");
+                continue;
+            }
+
+            // 3. CREATE MERCHANT RECORD (THIS WAS MISSING!)
+            $merchant = Merchant::create([
+                'name' => $data['store_name'],
+                'phone' => $data['store_phone'],
+                'alamat' => $data['store_address'],
+                'description' => "Main branch in {$data['city']}",
+                'keeper_id' => $owner->id,
+                'thumbnail' => null,
+            ]);
+
+            $this->command->info("   ✓ Merchant created: {$merchant->name} (ID: {$merchant->id})");
+
+            // 4. Create Staffs & Assign to Team
             foreach ($data['staffs'] as $staffData) {
                 $staff = User::firstOrCreate(
                     ['email' => $staffData['email']],
@@ -101,21 +119,22 @@ class MerchantSeeder extends Seeder
                     ]
                 );
 
-                // Assign Role (Admin/Kasir/Gudang)
-                // Disini 'Admin' bertindak sebagai 'Kepala Toko' sesuai RolesEnum
+                // Assign Role
                 $staff->syncRoles($staffData['role']);
 
-                // Attach ke Team Toko tersebut
+                // Attach to Team
                 if (!$team->users()->where('user_id', $staff->id)->exists()) {
                     $team->users()->attach($staff->id, ['created_at' => now(), 'updated_at' => now()]);
                 }
 
-                // Set Current Team ID agar saat login langsung masuk ke toko ini
+                // Set Current Team
                 $staff->current_team_id = $team->id;
                 $staff->saveQuietly();
+
+                $this->command->info("   ✓ Staff: {$staff->name} ({$staffData['role']})");
             }
 
-            // 3. Create Customers
+            // 5. Create Customers
             foreach ($data['customers'] as $custData) {
                 $customer = $userService->register([
                     'name' => $custData['name'],
@@ -125,20 +144,20 @@ class MerchantSeeder extends Seeder
                     'role' => RolesEnum::CUSTOMER->value
                 ]);
 
-                // Pastikan role customer juga ter-assign
                 $customer->assignRole(RolesEnum::CUSTOMER->value);
-
                 $customer->email_verified_at = now();
                 $customer->saveQuietly();
 
-                // Attach customer ke team toko (many-to-many relasi customer-merchant)
-                // Asumsi ada tabel pivot atau logic attach customer ke toko
+                // Attach customer to team
                 if (!$team->customers()->where('user_id', $customer->id)->exists()) {
                     $team->customers()->attach($customer->id, ['created_at' => now(), 'updated_at' => now()]);
                 }
+
+                $this->command->info("   ✓ Customer: {$customer->name}");
             }
 
             $this->command->info("   ✅ Selesai: {$data['store_name']} (Staff: " . count($data['staffs']) . ", Cust: " . count($data['customers']) . ")");
+            $this->command->info('');
         }
     }
 }

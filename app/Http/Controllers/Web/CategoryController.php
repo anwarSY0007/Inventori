@@ -23,7 +23,7 @@ class CategoryController extends Controller
         $field = ['id', 'name', 'thumbnail', 'tagline', 'slug', 'created_at'];
         $categories = $this->categoryService->getAll($field);
 
-        return Inertia::render('Category/Index', [
+        return Inertia::render('Admin/Category/Index', [
             'categories' => CategoryResource::collection($categories),
         ]);
     }
