@@ -19,9 +19,9 @@ class CategoryResource extends JsonResource
             'slug' => $this->slug,
             'name' => $this->name,
             'thumbnail' => $this->thumbnail,
-            'tagline' => $this->description,
-            'created_at' => $this->created_at->format('Y-m-d H:i:s'),
-            'updated_at' => $this->updated_at->format('Y-m-d H:i:s'),
+            'tagline' => $this->tagline,
+            'created_at' => $this->created_at?->format('Y-m-d H:i:s'),
+            'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
         ];
     }
 }

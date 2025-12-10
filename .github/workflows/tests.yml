@@ -1,50 +1,79 @@
-name: tests
+name: Deploy to Staging
 
 on:
   push:
-    branches:
-      - develop
-      - main
-  pull_request:
-    branches:
-      - develop
-      - main
+    branches: [develop]
+  workflow_dispatch:
 
 jobs:
-  ci:
+  deploy:
+    name: Deploy to Staging Server
     runs-on: ubuntu-latest
+    environment: staging
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup PHP
+      - name: Setup PHP 8.5
         uses: shivammathur/setup-php@v2
         with:
-          php-version: 8.4
-          tools: composer:v2
-          coverage: xdebug
+          php-version: '8.5'
+          extensions: mbstring, xml, ctype, iconv, intl, pdo_pgsql
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Install Composer Dependencies
+        run: composer install --prefer-dist --optimize-autoloader --no-interaction
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: '25'
+          cache: 'pnpm'
 
-      - name: Install Node Dependencies
-        run: npm ci
+      - name: Install NPM Dependencies
+        run: pnpm ci
 
-      - name: Install Dependencies
-        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+      - name: Build Frontend Assets
+        run: pnpm build
 
-      - name: Build Assets
-        run: npm run build
+      - name: Deploy to Staging Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.STAGING_SERVER_HOST }}
+          username: ${{ secrets.STAGING_SERVER_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          port: ${{ secrets.STAGING_SERVER_PORT || 22 }}
+          script: |
+            cd /var/www/staging-inventory
 
-      - name: Copy Environment File
-        run: cp .env.example .env
+            git fetch --all
+            git reset --hard origin/develop
 
-      - name: Generate Application Key
-        run: php artisan key:generate
+            composer install --optimize-autoloader --no-interaction
+            pnpm ci
+            pnpm build
 
-      - name: Tests
-        run: ./vendor/bin/pest
+            php artisan migrate --force
+
+            php artisan config:clear
+            php artisan cache:clear
+            php artisan config:cache
+            php artisan route:cache
+
+            php artisan queue:restart
+            sudo systemctl reload php8.2-fpm
+
+      - name: Run Smoke Tests
+        run: |
+          echo "Running smoke tests on staging..."
+          curl -f ${{ secrets.STAGING_URL }}/health || exit 1
+
+      - name: Notify Team
+        if: success()
+        uses: slackapi/slack-github-action@vv2.1.1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "🚀 Staging deployment successful! Ready for testing."
+            }

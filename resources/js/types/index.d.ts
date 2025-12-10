@@ -183,13 +183,14 @@ export interface Product {
   updated_at: string;
 }
 
-// Category Type
+// Category Type 'slug', 'name', 'thumbnail', 'tagline'
+
 export interface Category {
   id: string;
-  name: string;
   slug: string;
-  description?: string;
-  image?: string;
+  name: string;
+  tagline?: string;
+  thumbnail?: string;
   products_count?: number;
   created_at: string;
   updated_at: string;
